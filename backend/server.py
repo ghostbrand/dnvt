@@ -676,7 +676,7 @@ def generate_boletim_pdf(boletim: dict, acidente: dict, user: dict) -> BytesIO:
     
     # Description
     elements.append(Paragraph("DESCRIÇÃO DO ACIDENTE", styles['SubTitle']))
-    elements.append(Paragraph(acidente.get('descricao', 'Sem descrição'), styles['BodyText']))
+    elements.append(Paragraph(acidente.get('descricao', 'Sem descrição'), styles['BodyTextCustom']))
     elements.append(Spacer(1, 15))
     
     # Victims info if available
@@ -684,7 +684,7 @@ def generate_boletim_pdf(boletim: dict, acidente: dict, user: dict) -> BytesIO:
     if vitimas:
         elements.append(Paragraph("INFORMAÇÕES DAS VÍTIMAS", styles['SubTitle']))
         for i, vitima in enumerate(vitimas, 1):
-            elements.append(Paragraph(f"{i}. {vitima.get('nome', 'N/A')} - {vitima.get('estado', 'N/A')}", styles['BodyText']))
+            elements.append(Paragraph(f"{i}. {vitima.get('nome', 'N/A')} - {vitima.get('estado', 'N/A')}", styles['BodyTextCustom']))
         elements.append(Spacer(1, 15))
     
     # Vehicles info if available
@@ -692,13 +692,13 @@ def generate_boletim_pdf(boletim: dict, acidente: dict, user: dict) -> BytesIO:
     if veiculos:
         elements.append(Paragraph("INFORMAÇÕES DOS VEÍCULOS", styles['SubTitle']))
         for i, veiculo in enumerate(veiculos, 1):
-            elements.append(Paragraph(f"{i}. {veiculo.get('marca', 'N/A')} - Matrícula: {veiculo.get('matricula', 'N/A')}", styles['BodyText']))
+            elements.append(Paragraph(f"{i}. {veiculo.get('marca', 'N/A')} - Matrícula: {veiculo.get('matricula', 'N/A')}", styles['BodyTextCustom']))
         elements.append(Spacer(1, 15))
     
     # Observations
     if boletim.get('observacoes'):
         elements.append(Paragraph("OBSERVAÇÕES", styles['SubTitle']))
-        elements.append(Paragraph(boletim.get('observacoes', ''), styles['BodyText']))
+        elements.append(Paragraph(boletim.get('observacoes', ''), styles['BodyTextCustom']))
         elements.append(Spacer(1, 15))
     
     # Footer
