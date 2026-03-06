@@ -51,7 +51,10 @@ export default function PerfilPage() {
         telefone: user.telefone || '',
         bilhete_identidade: user.bilhete_identidade || '',
         endereco: user.endereco || '',
-        zonas_notificacao: user.zonas_notificacao || []
+        zonas_notificacao: user.zonas_notificacao || [],
+        alertas_novos_acidentes: user.alertas_novos_acidentes !== false,
+        alertas_sonoros: user.alertas_sonoros !== false,
+        alertas_sms: user.alertas_sms === true
       });
     }
     fetchZonasMonitoradas();
