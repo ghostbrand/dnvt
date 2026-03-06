@@ -373,13 +373,73 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     if isinstance(created_at, str):
         created_at = datetime.fromisoformat(created_at)
     
+    updated_at = current_user.get("updated_at")
+    if updated_at and isinstance(updated_at, str):
+        updated_at = datetime.fromisoformat(updated_at)
+    
     return UserResponse(
         user_id=current_user["user_id"],
         nome=current_user["nome"],
         email=current_user["email"],
         telefone=current_user.get("telefone"),
         tipo=current_user["tipo"],
-        created_at=created_at
+        bilhete_identidade=current_user.get("bilhete_identidade"),
+        endereco=current_user.get("endereco"),
+        zonas_notificacao=current_user.get("zonas_notificacao", []),
+        alertas_novos_acidentes=current_user.get("alertas_novos_acidentes", True),
+        alertas_sonoros=current_user.get("alertas_sonoros", True),
+        alertas_sms=current_user.get("alertas_sms", False),
+        created_at=created_at,
+        updated_at=updated_at
+    )
+
+@api_router.patch("/usuarios/me", response_model=UserResponse)
+async def update_user_profile(update: UserUpdate, current_user: dict = Depends(get_current_user)):
+    """Atualiza o perfil do usuário logado"""
+    update_data = {k: v for k, v in update.model_dump().items() if v is not None}
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="Nenhum dado para atualizar")
+    
+    # Validação do Bilhete de Identidade (BI) Angolano
+    if "bilhete_identidade" in update_data:
+        bi = update_data["bilhete_identidade"]
+        import re
+        bi_regex = r'^[0-9]{9}[A-Z]{2}[0-9]{3}$'
+        if bi and not re.match(bi_regex, bi):
+            raise HTTPException(status_code=400, detail="Formato de BI inválido. Use: 123456789LA123")
+    
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.usuarios.update_one(
+        {"user_id": current_user["user_id"]}, 
+        {"$set": update_data}
+    )
+    
+    updated_user = await db.usuarios.find_one({"user_id": current_user["user_id"]}, {"_id": 0})
+    
+    created_at = updated_user["created_at"]
+    if isinstance(created_at, str):
+        created_at = datetime.fromisoformat(created_at)
+    
+    updated_at = updated_user.get("updated_at")
+    if updated_at and isinstance(updated_at, str):
+        updated_at = datetime.fromisoformat(updated_at)
+    
+    return UserResponse(
+        user_id=updated_user["user_id"],
+        nome=updated_user["nome"],
+        email=updated_user["email"],
+        telefone=updated_user.get("telefone"),
+        tipo=updated_user["tipo"],
+        bilhete_identidade=updated_user.get("bilhete_identidade"),
+        endereco=updated_user.get("endereco"),
+        zonas_notificacao=updated_user.get("zonas_notificacao", []),
+        alertas_novos_acidentes=updated_user.get("alertas_novos_acidentes", True),
+        alertas_sonoros=updated_user.get("alertas_sonoros", True),
+        alertas_sms=updated_user.get("alertas_sms", False),
+        created_at=created_at,
+        updated_at=updated_at
     )
 
 @api_router.post("/auth/google/session")
