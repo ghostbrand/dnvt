@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { boletinsApi, acidentesApi } from '../services/api';
+import { boletinsApi } from '../services/api';
 import { 
   FileText, 
   Plus, 
@@ -21,14 +21,18 @@ import {
   Upload,
   Eye,
   RefreshCw,
-  Calendar
+  Calendar,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function BoletinsPage() {
   const [boletins, setBoletins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterModo, setFilterModo] = useState('all');
+  const [downloadingId, setDownloadingId] = useState(null);
 
   const fetchBoletins = async () => {
     setLoading(true);
@@ -45,6 +49,36 @@ export default function BoletinsPage() {
   useEffect(() => {
     fetchBoletins();
   }, []);
+
+  const handleDownloadPdf = async (boletimId) => {
+    setDownloadingId(boletimId);
+    try {
+      const token = localStorage.getItem('dnvt_token');
+      const response = await fetch(`${API}/boletins/${boletimId}/pdf`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erro ao gerar PDF');
+      }
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `boletim_${boletimId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast.success('PDF gerado com sucesso');
+    } catch (error) {
+      toast.error('Erro ao gerar PDF');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const filteredBoletins = boletins.filter(b => 
     filterModo === 'all' || b.modo_criacao === filterModo
@@ -148,8 +182,18 @@ export default function BoletinsPage() {
                               <Eye className="w-4 h-4" />
                             </Link>
                           </Button>
-                          <Button variant="ghost" size="sm" data-testid={`download-${boletim.boletim_id}`}>
-                            <Download className="w-4 h-4" />
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleDownloadPdf(boletim.boletim_id)}
+                            disabled={downloadingId === boletim.boletim_id}
+                            data-testid={`download-${boletim.boletim_id}`}
+                          >
+                            {downloadingId === boletim.boletim_id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Download className="w-4 h-4" />
+                            )}
                           </Button>
                         </div>
                       </TableCell>
