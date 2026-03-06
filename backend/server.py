@@ -368,6 +368,10 @@ async def login(credentials: UserLogin):
     if isinstance(created_at, str):
         created_at = datetime.fromisoformat(created_at)
     
+    updated_at = user.get("updated_at")
+    if updated_at and isinstance(updated_at, str):
+        updated_at = datetime.fromisoformat(updated_at)
+    
     return TokenResponse(
         access_token=token,
         user=UserResponse(
@@ -376,7 +380,14 @@ async def login(credentials: UserLogin):
             email=user["email"],
             telefone=user.get("telefone"),
             tipo=user["tipo"],
-            created_at=created_at
+            bilhete_identidade=user.get("bilhete_identidade"),
+            endereco=user.get("endereco"),
+            zonas_notificacao=user.get("zonas_notificacao", []),
+            alertas_novos_acidentes=user.get("alertas_novos_acidentes", True),
+            alertas_sonoros=user.get("alertas_sonoros", True),
+            alertas_sms=user.get("alertas_sms", False),
+            created_at=created_at,
+            updated_at=updated_at
         )
     )
 
