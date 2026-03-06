@@ -234,7 +234,7 @@ export default function DashboardPage() {
               <CardTitle className="text-lg">Por Gravidade</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-64">
+              <div style={{ width: '100%', height: 256 }}>
                 {gravidadeData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -260,14 +260,16 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
-              <div className="flex flex-wrap justify-center gap-3 mt-2">
-                {gravidadeData.map((item, idx) => (
-                  <div key={item.name} className="flex items-center gap-1.5 text-xs">
-                    <div className="w-3 h-3 rounded" style={{ backgroundColor: COLORS[idx] }} />
-                    <span>{item.name}: {item.value}</span>
-                  </div>
-                ))}
-              </div>
+              {gravidadeData.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-3 mt-2">
+                  {gravidadeData.map((item, idx) => (
+                    <div key={item.name} className="flex items-center gap-1.5 text-xs">
+                      <div className="w-3 h-3 rounded" style={{ backgroundColor: COLORS[idx] }} />
+                      <span>{item.name}: {item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
