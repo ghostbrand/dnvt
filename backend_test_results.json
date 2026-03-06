@@ -1,0 +1,184 @@
+{
+  "summary": {
+    "tests_run": 29,
+    "tests_passed": 25,
+    "success_rate": 86.20689655172413,
+    "timestamp": "2026-03-06T20:58:38.088718"
+  },
+  "results": [
+    {
+      "test": "Root endpoint",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:18.471631"
+    },
+    {
+      "test": "Health check",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:18.640322"
+    },
+    {
+      "test": "User registration",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:21.676356"
+    },
+    {
+      "test": "Admin login",
+      "success": false,
+      "details": "{'detail': 'Credenciais inv\u00e1lidas'}",
+      "timestamp": "2026-03-06T20:58:22.050264"
+    },
+    {
+      "test": "Get current user",
+      "success": "user_70cbad7b2c75",
+      "details": "",
+      "timestamp": "2026-03-06T20:58:22.425359"
+    },
+    {
+      "test": "Create accident",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:23.108152"
+    },
+    {
+      "test": "List accidents",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:23.500455"
+    },
+    {
+      "test": "List active accidents",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:23.874594"
+    },
+    {
+      "test": "Get accident by ID",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:24.277383"
+    },
+    {
+      "test": "Update accident",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:25.462530"
+    },
+    {
+      "test": "Create bulletin",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:26.379619"
+    },
+    {
+      "test": "List bulletins",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:26.784304"
+    },
+    {
+      "test": "Get bulletin by ID",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:27.151097"
+    },
+    {
+      "test": "Create assistance",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:28.299904"
+    },
+    {
+      "test": "List assistances",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:28.672240"
+    },
+    {
+      "test": "Update assistance",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:29.822270"
+    },
+    {
+      "test": "Calculate critical zones",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:30.214499"
+    },
+    {
+      "test": "Create critical zone",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:30.860936"
+    },
+    {
+      "test": "List critical zones",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:31.224635"
+    },
+    {
+      "test": "Validate critical zone",
+      "success": false,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:31.602564"
+    },
+    {
+      "test": "Statistics summary",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:34.246399"
+    },
+    {
+      "test": "Monthly statistics",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:34.658770"
+    },
+    {
+      "test": "Hourly statistics",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:35.015808"
+    },
+    {
+      "test": "Weekly statistics",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:35.411258"
+    },
+    {
+      "test": "Get configurations",
+      "success": false,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:35.798812"
+    },
+    {
+      "test": "Update configurations",
+      "success": false,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:36.166220"
+    },
+    {
+      "test": "Get Google Maps key",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:36.547502"
+    },
+    {
+      "test": "Get SMS balance",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:37.186529"
+    },
+    {
+      "test": "Check route accidents",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-03-06T20:58:38.088451"
+    }
+  ]
+}
