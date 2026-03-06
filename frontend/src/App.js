@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Toaster } from './components/ui/sonner';
 import { Loader2 } from 'lucide-react';
-import { useWebSocket } from './hooks/useWebSocket';
+import { useNotifications } from './hooks/useWebSocket';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -11,20 +11,18 @@ import DashboardPage from './pages/DashboardPage';
 import MapaPage from './pages/MapaPage';
 import AcidentesPage from './pages/AcidentesPage';
 import NovoAcidentePage from './pages/NovoAcidentePage';
+import AcidenteDetalhesPage from './pages/AcidenteDetalhesPage';
 import BoletinsPage from './pages/BoletinsPage';
 import NovoBoletimPage from './pages/NovoBoletimPage';
 import ZonasCriticasPage from './pages/ZonasCriticasPage';
 import AssistenciasPage from './pages/AssistenciasPage';
 import EstatisticasPage from './pages/EstatisticasPage';
 import ConfiguracoesPage from './pages/ConfiguracoesPage';
+import PerfilPage from './pages/PerfilPage';
 
-// WebSocket wrapper component
-function WebSocketProvider({ children }) {
-  const { user } = useAuth();
-  
-  // Only connect WebSocket when user is authenticated
-  useWebSocket();
-  
+// Notifications wrapper component
+function NotificationsProvider({ children }) {
+  useNotifications();
   return children;
 }
 
