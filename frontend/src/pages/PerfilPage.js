@@ -89,13 +89,16 @@ export default function PerfilPage() {
       if (response.ok) {
         toast.success('Perfil atualizado com sucesso');
         setEditMode(false);
-        // Refresh page to get updated user data
-        window.location.reload();
+        // Atualizar dados do usuário no contexto
+        if (refreshUser) {
+          await refreshUser();
+        }
       } else {
-        throw new Error('Erro ao atualizar');
+        const error = await response.json();
+        throw new Error(error.detail || 'Erro ao atualizar');
       }
     } catch (error) {
-      toast.error('Erro ao atualizar perfil');
+      toast.error(error.message || 'Erro ao atualizar perfil');
     } finally {
       setSaving(false);
     }
