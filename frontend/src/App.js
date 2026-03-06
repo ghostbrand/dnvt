@@ -42,7 +42,7 @@ function ProtectedRoute({ children }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  return <WebSocketProvider>{children}</WebSocketProvider>;
+  return <NotificationsProvider>{children}</NotificationsProvider>;
 }
 
 function AppRouter() {
