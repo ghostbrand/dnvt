@@ -779,6 +779,9 @@ async def create_assistencia(assistencia: AssistenciaCreate, current_user: dict 
         {"$set": {"status": "EM_ATENDIMENTO", "updated_at": now.isoformat()}}
     )
     
+    # Send WebSocket notification
+    asyncio.create_task(notify_assistance_update(assistencia_doc, assistencia.acidente_id))
+    
     return AssistenciaResponse(**{**assistencia_doc, "hora_inicio": now})
 
 @api_router.get("/assistencias", response_model=List[AssistenciaResponse])
