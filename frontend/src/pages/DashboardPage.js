@@ -202,9 +202,9 @@ export default function DashboardPage() {
               <CardTitle className="text-lg">Acidentes por Hora</CardTitle>
             </CardHeader>
             <CardContent>
-              <div style={{ width: '100%', height: 256 }}>
+              <div style={{ width: '100%', height: 256, minHeight: 256 }}>
                 {hourlyData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={256} minHeight={256}>
                     <BarChart data={hourlyData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                       <XAxis dataKey="hora" tick={{ fontSize: 12 }} />
@@ -234,9 +234,9 @@ export default function DashboardPage() {
               <CardTitle className="text-lg">Por Gravidade</CardTitle>
             </CardHeader>
             <CardContent>
-              <div style={{ width: '100%', height: 256 }}>
+              <div style={{ width: '100%', height: 256, minHeight: 256 }}>
                 {gravidadeData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={256} minHeight={256}>
                     <PieChart>
                       <Pie
                         data={gravidadeData}
