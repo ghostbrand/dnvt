@@ -827,6 +827,9 @@ async def update_assistencia(assistencia_id: str, update: AssistenciaUpdate, cur
     if hora_fim and isinstance(hora_fim, str):
         hora_fim = datetime.fromisoformat(hora_fim)
     
+    # Send WebSocket notification
+    asyncio.create_task(notify_assistance_update(updated, assistencia["acidente_id"]))
+    
     return AssistenciaResponse(**{**updated, "hora_inicio": hora_inicio, "hora_fim": hora_fim})
 
 # ==================== ZONAS CRITICAS ROUTES ====================
