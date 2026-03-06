@@ -451,6 +451,9 @@ async def create_acidente(acidente: AcidenteCreate, current_user: dict = Depends
     
     await db.acidentes.insert_one(acidente_doc)
     
+    # Send WebSocket notification
+    asyncio.create_task(notify_new_accident(acidente_doc))
+    
     return AcidenteResponse(**{**acidente_doc, "created_at": now, "updated_at": now})
 
 @api_router.get("/acidentes", response_model=List[AcidenteResponse])
