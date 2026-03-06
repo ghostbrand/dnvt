@@ -1,100 +1,139 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 
-const WS_URL = process.env.REACT_APP_BACKEND_URL?.replace('https://', 'wss://').replace('http://', 'ws://');
+const API_URL = process.env.REACT_APP_BACKEND_URL;
 
-export function useWebSocket() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [lastMessage, setLastMessage] = useState(null);
-  const wsRef = useRef(null);
-  const reconnectTimeoutRef = useRef(null);
-  const reconnectAttempts = useRef(0);
-  const maxReconnectAttempts = 5;
+// Audio para alertas
+const playAlertSound = (type = 'warning') => {
+  try {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    if (type === 'critical') {
+      // Som crítico - grave/fatal
+      oscillator.frequency.value = 880;
+      gainNode.gain.value = 0.3;
+      oscillator.type = 'square';
+      
+      oscillator.start();
+      setTimeout(() => {
+        oscillator.frequency.value = 660;
+      }, 150);
+      setTimeout(() => {
+        oscillator.frequency.value = 880;
+      }, 300);
+      setTimeout(() => {
+        oscillator.stop();
+        audioContext.close();
+      }, 500);
+    } else {
+      // Som de aviso normal
+      oscillator.frequency.value = 523;
+      gainNode.gain.value = 0.2;
+      oscillator.type = 'sine';
+      
+      oscillator.start();
+      setTimeout(() => {
+        oscillator.frequency.value = 659;
+      }, 100);
+      setTimeout(() => {
+        oscillator.stop();
+        audioContext.close();
+      }, 200);
+    }
+  } catch (error) {
+    console.log('Audio not supported');
+  }
+};
 
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+export function useNotifications() {
+  const [lastAccidents, setLastAccidents] = useState([]);
+  const [isPolling, setIsPolling] = useState(false);
+  const lastCheckRef = useRef(new Date().toISOString());
+  const intervalRef = useRef(null);
 
+  const checkForNewAccidents = useCallback(async () => {
     try {
-      wsRef.current = new WebSocket(`${WS_URL}/ws/notifications`);
+      const token = localStorage.getItem('dnvt_token');
+      if (!token) return;
 
-      wsRef.current.onopen = () => {
-        console.log('WebSocket connected');
-        setIsConnected(true);
-        reconnectAttempts.current = 0;
-      };
+      const response = await fetch(`${API_URL}/api/acidentes/ativos`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
-      wsRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          setLastMessage(data);
+      if (!response.ok) return;
+
+      const accidents = await response.json();
+      
+      // Verificar novos acidentes (criados após o último check)
+      const newAccidents = accidents.filter(a => {
+        const createdAt = new Date(a.created_at);
+        const lastCheck = new Date(lastCheckRef.current);
+        return createdAt > lastCheck;
+      });
+
+      if (newAccidents.length > 0) {
+        newAccidents.forEach(acidente => {
+          const gravidade = acidente.gravidade;
+          const tipo = acidente.tipo_acidente?.replace(/_/g, ' ');
           
-          // Show toast notification based on message type
-          if (data.type === 'NEW_ACCIDENT') {
-            const gravidade = data.data.gravidade;
-            const tipo = data.data.tipo_acidente?.replace(/_/g, ' ');
-            
-            if (gravidade === 'FATAL' || gravidade === 'GRAVE') {
-              toast.error(`🚨 ACIDENTE ${gravidade}: ${tipo}`, {
-                description: data.data.descricao,
-                duration: 10000
-              });
-            } else {
-              toast.warning(`⚠️ Novo Acidente: ${tipo}`, {
-                description: data.data.descricao,
-                duration: 5000
-              });
-            }
-          } else if (data.type === 'ASSISTANCE_UPDATE') {
-            const status = data.data.status;
-            const tipo = data.data.tipo;
-            
-            if (status === 'NO_LOCAL') {
-              toast.info(`🚑 ${tipo} chegou ao local`, { duration: 4000 });
-            } else if (status === 'FINALIZADO') {
-              toast.success(`✅ ${tipo} finalizou atendimento`, { duration: 4000 });
-            }
+          if (gravidade === 'FATAL' || gravidade === 'GRAVE') {
+            playAlertSound('critical');
+            toast.error(`🚨 ACIDENTE ${gravidade}: ${tipo}`, {
+              description: acidente.descricao?.substring(0, 100),
+              duration: 15000
+            });
+          } else {
+            playAlertSound('warning');
+            toast.warning(`⚠️ Novo Acidente: ${tipo}`, {
+              description: acidente.descricao?.substring(0, 100),
+              duration: 8000
+            });
           }
-        } catch (e) {
-          console.error('Error parsing WebSocket message:', e);
-        }
-      };
-
-      wsRef.current.onclose = () => {
-        console.log('WebSocket disconnected');
-        setIsConnected(false);
+        });
         
-        // Attempt to reconnect
-        if (reconnectAttempts.current < maxReconnectAttempts) {
-          reconnectAttempts.current += 1;
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
-          console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current})`);
-          reconnectTimeoutRef.current = setTimeout(connect, delay);
-        }
-      };
+        setLastAccidents(newAccidents);
+      }
 
-      wsRef.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
-      };
+      lastCheckRef.current = new Date().toISOString();
     } catch (error) {
-      console.error('Failed to create WebSocket:', error);
+      console.error('Error checking for accidents:', error);
     }
   }, []);
 
-  const disconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
+  const startPolling = useCallback(() => {
+    if (intervalRef.current) return;
+    
+    setIsPolling(true);
+    // Check a cada 15 segundos
+    intervalRef.current = setInterval(checkForNewAccidents, 15000);
+    // Verificar imediatamente
+    checkForNewAccidents();
+  }, [checkForNewAccidents]);
+
+  const stopPolling = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-    setIsConnected(false);
+    setIsPolling(false);
   }, []);
 
   useEffect(() => {
-    connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
+    startPolling();
+    return () => stopPolling();
+  }, [startPolling, stopPolling]);
 
-  return { isConnected, lastMessage, reconnect: connect };
+  return { 
+    isPolling, 
+    lastAccidents, 
+    checkNow: checkForNewAccidents,
+    playAlertSound 
+  };
 }
+
+export { playAlertSound };
