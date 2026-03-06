@@ -81,7 +81,7 @@ function AppRouter() {
       } />
       
       <Route path="/boletins/novo" element={
-        <ProtectedRoute><BoletinsPage /></ProtectedRoute>
+        <ProtectedRoute><NovoBoletimPage /></ProtectedRoute>
       } />
       
       <Route path="/zonas-criticas" element={
