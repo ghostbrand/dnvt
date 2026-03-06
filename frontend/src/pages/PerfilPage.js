@@ -337,21 +337,39 @@ export default function PerfilPage() {
                   <p className="font-medium">Alertas de Novos Acidentes</p>
                   <p className="text-sm text-slate-500">Receber notificação quando houver novos acidentes</p>
                 </div>
-                <input type="checkbox" defaultChecked className="w-5 h-5 rounded" />
+                <input 
+                  type="checkbox" 
+                  checked={formData.alertas_novos_acidentes}
+                  onChange={(e) => setFormData({...formData, alertas_novos_acidentes: e.target.checked})}
+                  disabled={!editMode}
+                  className="w-5 h-5 rounded" 
+                />
               </div>
               <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                 <div>
                   <p className="font-medium">Alertas Sonoros</p>
                   <p className="text-sm text-slate-500">Reproduzir som ao receber alerta crítico</p>
                 </div>
-                <input type="checkbox" defaultChecked className="w-5 h-5 rounded" />
+                <input 
+                  type="checkbox" 
+                  checked={formData.alertas_sonoros}
+                  onChange={(e) => setFormData({...formData, alertas_sonoros: e.target.checked})}
+                  disabled={!editMode}
+                  className="w-5 h-5 rounded" 
+                />
               </div>
               <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                 <div>
                   <p className="font-medium">Alertas SMS</p>
                   <p className="text-sm text-slate-500">Receber SMS para acidentes graves na sua zona</p>
                 </div>
-                <input type="checkbox" className="w-5 h-5 rounded" />
+                <input 
+                  type="checkbox" 
+                  checked={formData.alertas_sms}
+                  onChange={(e) => setFormData({...formData, alertas_sms: e.target.checked})}
+                  disabled={!editMode}
+                  className="w-5 h-5 rounded" 
+                />
               </div>
             </div>
 
@@ -359,12 +377,24 @@ export default function PerfilPage() {
 
             <div>
               <h4 className="font-medium mb-3">Zonas Monitoradas</h4>
-              <p className="text-sm text-slate-500 mb-3">Selecione as zonas para receber alertas</p>
+              <p className="text-sm text-slate-500 mb-3">Selecione as zonas para receber alertas {!editMode && '(ative edição para alterar)'}</p>
               {zonasMonitoradas.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2">
                   {zonasMonitoradas.map(zona => (
-                    <label key={zona.zona_id} className="flex items-center gap-2 p-2 bg-slate-50 rounded cursor-pointer hover:bg-slate-100">
-                      <input type="checkbox" className="rounded" />
+                    <label key={zona.zona_id} className={`flex items-center gap-2 p-2 bg-slate-50 rounded ${editMode ? 'cursor-pointer hover:bg-slate-100' : 'opacity-75'}`}>
+                      <input 
+                        type="checkbox" 
+                        className="rounded" 
+                        disabled={!editMode}
+                        checked={formData.zonas_notificacao.includes(zona.zona_id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({...formData, zonas_notificacao: [...formData.zonas_notificacao, zona.zona_id]});
+                          } else {
+                            setFormData({...formData, zonas_notificacao: formData.zonas_notificacao.filter(id => id !== zona.zona_id)});
+                          }
+                        }}
+                      />
                       <span className="text-sm">{zona.nome || `Zona ${zona.zona_id.slice(-6)}`}</span>
                     </label>
                   ))}
