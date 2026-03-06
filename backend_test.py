@@ -86,7 +86,7 @@ class DNVTAPITester:
         # Test user registration
         reg_data = {
             "nome": "Test User DNVT",
-            "email": f"test_{datetime.now().strftime('%H%M%S')}@dnvt.test",
+            "email": f"test_{datetime.now().strftime('%H%M%S')}@example.com",
             "senha": "TestPass123!",
             "telefone": "+244923456789",
             "tipo": "POLICIA"
