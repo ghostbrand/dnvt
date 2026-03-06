@@ -102,6 +102,10 @@ function AppRouter() {
         <ProtectedRoute><ConfiguracoesPage /></ProtectedRoute>
       } />
       
+      <Route path="/perfil" element={
+        <ProtectedRoute><PerfilPage /></ProtectedRoute>
+      } />
+      
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
