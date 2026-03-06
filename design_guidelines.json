@@ -1,0 +1,137 @@
+{
+  "identity": {
+    "name": "E1 - The Anti-AI Designer",
+    "mission": "Create a high-authority, mission-critical traffic management system for Angola that balances professional severity with modern usability.",
+    "tone": "Authoritative, Precise, Urgent, Trustworthy",
+    "archetype": "Swiss & High-Contrast (Authority) + The Performance Pro (Command Center)"
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Barlow Condensed, sans-serif",
+      "body": "Public Sans, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "google_fonts_import": "https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Public+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap",
+    "usage_rules": {
+      "headings": "Uppercase or Sentence Case. Tight tracking (-0.02em). Weight 600 or 700.",
+      "body": "High legibility. Relaxed line-height (1.6). Weight 400 or 500.",
+      "data_values": "Use Monospace for coordinates, license plates, and rapid-change numbers."
+    }
+  },
+  "colors": {
+    "palette": {
+      "primary": {
+        "DEFAULT": "#0F172A",
+        "foreground": "#F8FAFC",
+        "description": "Slate 900 - Deep Navy for Authority/Police"
+      },
+      "secondary": {
+        "DEFAULT": "#F1F5F9",
+        "foreground": "#0F172A",
+        "description": "Slate 100 - Backgrounds/Surfaces"
+      },
+      "accent": {
+        "DEFAULT": "#2563EB",
+        "foreground": "#FFFFFF",
+        "description": "Blue 600 - Primary Actions/Buttons"
+      },
+      "destructive": {
+        "DEFAULT": "#DC2626",
+        "foreground": "#FFFFFF",
+        "description": "Red 600 - Accidents/Critical Alerts"
+      },
+      "warning": {
+        "DEFAULT": "#D97706",
+        "foreground": "#FFFFFF",
+        "description": "Amber 600 - Congestion/Caution"
+      },
+      "success": {
+        "DEFAULT": "#059669",
+        "foreground": "#FFFFFF",
+        "description": "Emerald 600 - Resolved/Flowing"
+      },
+      "background": "#FFFFFF",
+      "foreground": "#0F172A",
+      "muted": "#64748B",
+      "border": "#E2E8F0"
+    },
+    "dark_mode_palette": {
+      "background": "#020617",
+      "foreground": "#F8FAFC",
+      "card": "#0F172A",
+      "border": "#1E293B"
+    },
+    "gradients": {
+      "forbidden": "No full-screen gradients. No 'SaaS' purple/teal gradients.",
+      "allowed": "Subtle 'Hazard' stripes for critical alerts only."
+    }
+  },
+  "layout": {
+    "spacing_system": "Generous padding (p-6, p-8) for containers. Dense spacing (gap-2, gap-4) for data grids.",
+    "grid_system": {
+      "dashboard": "Bento Grid Mode B (High Density). 12-column base. Widgets span 3, 4, or 6 columns.",
+      "map_view": "Full-screen map canvas. Floating glass panels for controls (z-index 50)."
+    },
+    "container_styles": {
+      "card": "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm rounded-lg",
+      "floating_panel": "bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/50 shadow-lg rounded-xl"
+    }
+  },
+  "components": {
+    "buttons": {
+      "style": "Sharp or slightly rounded (rounded-md). Uppercase text for primary actions.",
+      "variants": {
+        "primary": "bg-slate-900 text-white hover:bg-slate-800 shadow-md",
+        "emergency": "bg-red-600 text-white hover:bg-red-700 animate-pulse-slow",
+        "ghost": "hover:bg-slate-100 text-slate-700"
+      }
+    },
+    "inputs": {
+      "style": "High contrast borders. Focus ring: Blue-500.",
+      "validation": "Error states must use Red-600 text and border."
+    },
+    "cards": {
+      "dashboard_widget": "Header with icon + title. Body with large metric or chart. Footer with trend.",
+      "incident_card": "Left border color-coded by severity (Red=Critical, Orange=Major, Yellow=Minor)."
+    },
+    "maps": {
+      "library": "@react-google-maps/api",
+      "style": "Custom JSON style to remove commercial POIs and emphasize roads/traffic.",
+      "markers": "Custom SVG markers for Accident, Police, Roadblock."
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "Use for map overlays only. Backdrop-blur-md + bg-white/80.",
+    "shadows": "Crisp, diffuse shadows. shadow-lg for floating elements.",
+    "borders": "1px solid borders are preferred over shadows for structure.",
+    "icons": "Lucide React (default). Use 'Shield', 'Siren', 'MapPin', 'AlertTriangle' heavily."
+  },
+  "motion": {
+    "transitions": "transition-all duration-200 ease-out",
+    "micro_interactions": "Buttons scale down slightly (0.98) on click. Hover lifts cards (-2px).",
+    "loading": "Skeleton loaders for data. Spinner for actions."
+  },
+  "accessibility": {
+    "contrast": "APCA compliant. Text on colored badges must be white or dark slate.",
+    "focus_states": "Visible 2px ring offset-2 ring-blue-500.",
+    "testing": "All interactive elements must have data-testid attributes."
+  },
+  "image_urls": {
+    "login_bg": "https://images.pexels.com/photos/7715241/pexels-photo-7715241.jpeg",
+    "hero_bg": "https://images.pexels.com/photos/8186851/pexels-photo-8186851.jpeg",
+    "placeholder_map": "https://images.unsplash.com/photo-1737531691773-2d4f1b79f650?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwxfHx0cmFmZmljJTIwY29udHJvbCUyMGNlbnRlciUyMGRhc2hib2FyZHxlbnwwfHx8fDE3NzI4Mjk2NzN8MA&ixlib=rb-4.1.0&q=85"
+  },
+  "instructions_to_main_agent": {
+    "general": "Build a serious, professional tool. No playful animations. Focus on data density and clarity.",
+    "dashboard": "The dashboard is a Command Center. It should feel like a pilot's cockpit. Critical info (Accidents, Deaths, Traffic Jams) must be top-level.",
+    "map": "The map is the core. Ensure it takes up maximum screen real estate when in 'Map Mode'.",
+    "forms": "Accident reporting forms are long. Use multi-step wizards or accordions to manage complexity.",
+    "mobile": "Mobile view is for citizens. It should be simpler: 'Report Accident', 'View Map', 'Emergency Call'."
+  },
+  "universal_guidelines": {
+    "no_gradients": "Do not use gradients for backgrounds or buttons unless specified.",
+    "no_centering": "Do not center text in cards unless it's a single big number.",
+    "data_density": "Avoid excessive whitespace in data tables. Use compact rows.",
+    "testing": "Add data-testid to every button, input, and link."
+  }
+}
