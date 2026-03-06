@@ -27,7 +27,7 @@ import { toast } from 'sonner';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function PerfilPage() {
-  const { user, token } = useAuth();
+  const { user, token, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -38,7 +38,10 @@ export default function PerfilPage() {
     telefone: '',
     bilhete_identidade: '',
     endereco: '',
-    zonas_notificacao: []
+    zonas_notificacao: [],
+    alertas_novos_acidentes: true,
+    alertas_sonoros: true,
+    alertas_sms: false
   });
 
   useEffect(() => {
