@@ -320,6 +320,12 @@ async def register(user: UserCreate):
         "senha": hash_password(user.senha),
         "telefone": user.telefone,
         "tipo": user.tipo if user.tipo in TIPOS_USUARIO else "CIDADAO",
+        "bilhete_identidade": None,
+        "endereco": None,
+        "zonas_notificacao": [],
+        "alertas_novos_acidentes": True,
+        "alertas_sonoros": True,
+        "alertas_sms": False,
         "created_at": now.isoformat(),
         "updated_at": now.isoformat()
     }
@@ -336,7 +342,14 @@ async def register(user: UserCreate):
             email=user.email,
             telefone=user.telefone,
             tipo=user_doc["tipo"],
-            created_at=now
+            bilhete_identidade=None,
+            endereco=None,
+            zonas_notificacao=[],
+            alertas_novos_acidentes=True,
+            alertas_sonoros=True,
+            alertas_sms=False,
+            created_at=now,
+            updated_at=now
         )
     )
 
