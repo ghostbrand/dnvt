@@ -102,6 +102,23 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  const refreshUser = useCallback(async () => {
+    if (!token) return;
+    
+    try {
+      const response = await fetch(`${API}/auth/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+      }
+    } catch (error) {
+      console.error('Refresh user failed:', error);
+    }
+  }, [token]);
+
   const logout = () => {
     localStorage.removeItem('dnvt_token');
     setToken(null);
@@ -109,7 +126,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, googleLogin, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, googleLogin, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
