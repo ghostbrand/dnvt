@@ -633,7 +633,7 @@ def generate_boletim_pdf(boletim: dict, acidente: dict, user: dict) -> BytesIO:
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name='TitleCenter', parent=styles['Title'], alignment=TA_CENTER, fontSize=16, spaceAfter=20))
     styles.add(ParagraphStyle(name='SubTitle', parent=styles['Normal'], fontSize=12, spaceAfter=10, fontName='Helvetica-Bold'))
-    styles.add(ParagraphStyle(name='BodyText', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=8))
+    styles.add(ParagraphStyle(name='BodyTextCustom', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=8))
     styles.add(ParagraphStyle(name='SmallText', parent=styles['Normal'], fontSize=8, textColor=colors.gray))
     
     elements = []
