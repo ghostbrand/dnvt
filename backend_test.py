@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 class DNVTAPITester:
-    def __init__(self, base_url="https://roadwatch-system-2.preview.emergentagent.com/api"):
+    def __init__(self, base_url="https://safe-roads-ao.preview.emergentagent.com/api"):
         self.base_url = base_url
         self.token = None
         self.user_id = None

@@ -1,0 +1,195 @@
+<analysis>**original_problem_statement:**
+O usuário solicitou um aplicativo full-stack com um frontend em React JS (Vite) para a web e um em React Native para dispositivos móveis, ambos compartilhando um único backend FastAPI.
+
+**PRODUCT REQUIREMENTS:**
+- **Funcionalidades Principais:**
+  - Geração de estatísticas automáticas sobre acidentes de trânsito.
+  - Criação de Boletim de Ocorrência digital e upload de boletins manuais.
+  - Reporte de acidentes via Google Maps e geolocalização em tempo real.
+  - Mapeamento de zonas de risco e identificação de pontos críticos.
+  - Visualização de assistência em andamento (ambulância, polícia).
+  - Sugestão de rotas alternativas para motoristas evitarem acidentes.
+- **Integrações:**
+  - **Google Maps:** Geocoding, Places, Directions APIs (requer chave do usuário).
+  - **SMS:** API da Ombala (requer chave do usuário).
+  - **Autenticação:** JWT personalizado e login social com Google.
+  - **Relatórios:** Geração de PDF e exportação para Excel.
+- **Funcionalidades Adicionais Solicitadas:**
+  - Sistema de notificações complexo baseado em zonas geográficas e rotas do usuário.
+  - Alertas sonoros para novas notificações.
+  - Histórico de registros (auditoria de quem criou/modificou e quando).
+  - Edição de perfil de usuário, incluindo um campo para Bilhete de Identidade (BI) de Angola.
+  - Validação de BI (pesquisar se existe API para isso).
+  - Funcionalidade completa de CRUD (criar, ler, atualizar, deletar, ver detalhes) para todas as entidades do sistema.
+
+**User's preferred language**: Português
+
+**what currently exists?**
+Um aplicativo full-stack funcional foi desenvolvido com um backend FastAPI e um frontend React. O backend está conectado a um banco de dados MongoDB e implementa a maioria dos modelos e endpoints de API necessários para o MVP, incluindo autenticação JWT/Google, geração de PDF e a base para integrações. O frontend web possui páginas para login, dashboard com gráficos, gestão de acidentes, boletins e configurações. Uma estrutura de arquivos inicial para o aplicativo móvel React Native foi criada em , mas não está funcional.
+
+**Last working item**:
+- **Last item agent was working:** O agente estava implementando a funcionalidade de perfil do usuário. Ele criou a página de perfil no frontend () e estava prestes a criar o endpoint no backend para permitir que os usuários atualizassem suas informações.
+- **Status:** IN PROGRESS
+- **Agent Testing Done:** N
+- **Which testing method agent to use?** frontend testing agent (para a página de perfil) e curl (para o endpoint da API).
+- **User Testing Done:** N
+
+**All Pending/In progress Issue list**:
+- **Issue 1 (P0):** Erro de conexão WebSocket.
+- **Issue 2 (P1):** Aviso de renderização de gráficos no dashboard.
+- **Issue 3 (P2):** CRUD incompleto no sistema.
+- **Issue 4 (P3):** Pesquisa por API de validação de BI Angolano.
+
+**Issues Detail:**
+- **Issue 1:** Erro de conexão WebSocket
+  - **Attempted fixes:** O agente identificou que o erro se deve a limitações do ambiente de execução e substituiu a implementação de WebSocket por um mecanismo de *polling* no arquivo .
+  - **Next debug checklist:** Verificar se o sistema de *polling* está funcionando corretamente, se as notificações são recebidas no frontend e se os alertas sonoros (ainda não implementados) podem ser integrados a ele.
+  - **Why fix this issue and what will be achieved with the fix?** Corrigir isso é crucial para as notificações em tempo real, uma funcionalidade central para alertar os usuários sobre novos acidentes.
+  - **Status:** IN PROGRESS
+  - **Is recurring issue?** Y
+  - **Should Test frontend/backend/both after fix?** both
+  - **Blocked on other issue:** None
+
+- **Issue 2:** Aviso de renderização de gráficos no dashboard
+  - **Attempted fixes:** O agente adicionou uma propriedade  ao  dos gráficos na página .
+  - **Next debug checklist:** Inspecionar o console do navegador no dashboard para confirmar que o aviso  desapareceu.
+  - **Why fix this issue and what will be achieved with the fix?** Remove avisos do console e garante que os componentes de gráfico sejam renderizados corretamente, evitando possíveis bugs visuais.
+  - **Status:** IN PROGRESS
+  - **Is recurring issue?** Y
+  - **Should Test frontend/backend/both after fix?** frontend
+  - **Blocked on other issue:** None
+
+- **Issue 3:** CRUD incompleto no sistema
+  - **Attempted fixes:** Foram criadas páginas de listagem e criação, mas as funcionalidades de edição, exclusão e visualização de detalhes não foram implementadas ou verificadas em todas as seções. A página  foi criada como um primeiro passo.
+  - **Next debug checklist:**
+    1. Revisar cada módulo (Acidentes, Boletins, Zonas Críticas, etc.).
+    2. Adicionar botões de Editar, Excluir e Detalhes às tabelas.
+    3. Criar os modais ou páginas de edição correspondentes.
+    4. Implementar os endpoints de API  e / necessários no backend.
+  - **Why fix this issue and what will be achieved with the fix?** O usuário solicitou explicitamente a capacidade de gerenciar todos os dados do sistema.
+  - **Status:** NOT STARTED
+  - **Is recurring issue?** N
+  - **Should Test frontend/backend/both after fix?** both
+  - **Blocked on other issue:** None
+
+- **Issue 4:** Pesquisa por API de validação de BI Angolano
+  - **Attempted fixes:** N/A.
+  - **Next debug checklist:** Usar a ferramenta de busca () para procurar por API pública validação Bilhete de Identidade Angola ou termos similares.
+  - **Why fix this issue and what will be achieved with the fix?** Atende a um requisito do usuário para aumentar a validade dos dados do perfil. Se não existir, o agente deve informar o usuário.
+  - **Status:** NOT STARTED
+  - **Is recurring issue?** N
+  - **Should Test frontend/backend/both after fix?** backend
+  - **Blocked on other issue:** None
+
+**In progress Task List**:
+- **Task 1 (P0):** Completar a funcionalidade de Perfil de Usuário.
+  - **Where to resume:** Criar o endpoint  no arquivo . Este endpoint deve receber os dados do perfil do usuário (nome, BI, etc.) e atualizá-los no banco de dados.
+  - **What will be achieved with this?** Os usuários poderão editar suas próprias informações de perfil através da página já criada no frontend.
+  - **Status:** IN PROGRESS
+  - **Should Test frontend/backend/both after fix?** both
+  - **Blocked on something:** None
+
+**Upcoming and Future Tasks**
+**Upcoming Tasks:**
+- **(P1) Implementar Sistema Avançado de Notificações:** Criar a UI e a lógica de backend para que os usuários possam se inscrever para receber alertas de acidentes com base em zonas geográficas de interesse.
+- **(P2) Implementar Histórico de Auditoria:** Adicionar campos como , , etc., a todos os modelos relevantes no banco de dados e exibi-los nas páginas de detalhes.
+- **(P3) Adicionar Alertas Sonoros:** Integrar a reprodução de um som no frontend sempre que uma nova notificação de acidente for recebida via *polling*.
+- **(P4) Exportação para Excel:** Adicionar funcionalidade para exportar relatórios de estatísticas para o formato Excel (XLSX).
+
+**Future Tasks:**
+- **(P0) Desenvolver o Aplicativo Móvel React Native:** Construir todas as funcionalidades do aplicativo móvel (mapa, alertas, reporte de acidentes) usando a estrutura de arquivos já criada em .
+- **(P1) Reporte de Acidente pelo Mapa:** Implementar a funcionalidade que permite a um cidadão clicar no mapa para reportar um novo acidente.
+
+**Completed work in this session**
+- **Recently completed:**
+  - Estrutura inicial do projeto (Backend FastAPI, Frontend React, Mobile RN).
+  - Implementação de modelos de banco de dados e endpoints CRUD básicos.
+  - Configuração de autenticação JWT e login com Google.
+  - Criação de páginas web para Dashboard, Login, Acidentes, Boletins, e Configurações.
+  - Geração de PDF para Boletins de Ocorrência ().
+  - Criação da estrutura base para o aplicativo móvel em .
+  - Tentativa de correção do WebSocket, mudando para um sistema de *polling*.
+  - Criação da página de detalhes do acidente e da página de perfil do usuário.
+
+**Earlier issues found/mentioned but not fixed**
+- Nenhum. Todos os problemas mencionados foram abordados ou estão na lista de pendências.
+
+**Known issue recurrence from previous fork**
+- N/A
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+- **Backend:** FastAPI, MongoDB (com ), Pydantic, JWT, .
+- **Frontend:** React, Vite, Tailwind CSS, Recharts, Axios, .
+- **Arquitetura:** Estrutura similar a um monorepo com pastas separadas para , , e .
+
+**key DB schema**
+- **usuarios:** {id, nome, email, tipo, bi}
+- **acidentes:** {id, latitude, longitude, gravidade, status, origem_registro}
+- **boletins_ocorrencia:** {id, id_acidente, modo_criacao, numero_processo}
+- **assistencias:** {id, id_acidente, tipo, status}
+- **zonas_criticas:** {id, latitude_centro, raio_metros, nivel_risco}
+- **configuracoes:** {id, google_maps_api_key, ombala_token}
+
+**changes in tech stack**
+- Nenhuma.
+
+**All files of reference**
+- : Contém toda a lógica do backend. **Necessita de refatoração urgente** devido ao seu tamanho.
+- : Arquivo-chave que foi modificado de WebSocket para *polling* para lidar com as notificações.
+- : Contém os gráficos que apresentaram problemas de renderização.
+- : Página recém-criada e inacabada para edição de perfil.
+- : Diretório que contém a estrutura do futuro aplicativo móvel.
+
+**Areas that need refactoring**:
+- O arquivo  cresceu para mais de 1300 linhas e contém modelos, rotas, lógica de negócios e configurações. Ele deve ser dividido em uma estrutura mais organizada, como , , , para melhorar a manutenibilidade.
+
+**key api endpoints**
+- : Login com JWT.
+- : Login com Google.
+- : Obter/Atualizar perfil do usuário (o endpoint de atualização  está pendente).
+- : CRUD para acidentes.
+- : Gerar PDF do boletim.
+- : Novo endpoint para o *polling* de notificações.
+- : Gerenciar chaves de API.
+
+**Critical Info for New Agent**
+- **Responda sempre em Português.**
+- O WebSocket falhou e foi substituído por um mecanismo de *polling* ( e endpoint ). Esta implementação precisa ser totalmente verificada, incluindo a adição de alertas sonoros.
+- O desenvolvimento do aplicativo React Native é uma tarefa futura importante e ainda não foi iniciado. A estrutura em  é apenas um placeholder.
+- A principal prioridade agora é corrigir os problemas pendentes (notificações, gráficos) e depois implementar as funcionalidades solicitadas pelo usuário, como CRUD completo, edição de perfil e o sistema de alertas por zona.
+- O arquivo  do backend está muito grande e deve ser refatorado para facilitar o desenvolvimento futuro.
+
+**documents and test reports created in this job**
+- 
+- 
+
+**Last 10 User Messages and any pending HUMAN messages**
+O usuário reportou erros de WebSocket e de renderização de gráficos e, em seguida, solicitou uma lista extensa de novas funcionalidades, incluindo: CRUD completo para todas as entidades, histórico de auditoria, edição de perfil com validação de BI, alertas sonoros e um sistema de notificação avançado baseado em geolocalização. O agente começou a trabalhar nessas solicitações, primeiro corrigindo os bugs e depois iniciando a implementação da página de perfil. A grande lista de solicitações do usuário é o guia para as próximas tarefas.
+
+**Project Health Check:**
+- **Broken:** O sistema de notificações original via WebSocket está quebrado. Uma alternativa via *polling* foi implementada, mas aguarda verificação completa.
+- **Mocked:** O aplicativo móvel React Native em  é um esqueleto não funcional.
+
+**3rd Party Integrations**
+- **Google Maps (Geocoding, Places, Directions):** Requer chave de API do usuário.
+- **Google OAuth:** Utiliza a biblioteca  (chave gerenciada pela Emergent).
+- **Ombala SMS:** Requer chave de API/Token do usuário.
+- **reportlab:** Biblioteca Python para geração de PDF.
+
+**Testing status**
+- **Testing agent used after significant changes:** YES
+- **Troubleshoot agent used after agent stuck in loop:** NO
+- **Test files created:** []
+- **Known regressions:** A funcionalidade de WebSocket regrediu devido a limitações do ambiente, forçando a mudança para *polling*.
+
+**Credentials to test flow:**
+- **Username:** 
+- **Password:** 
+
+**What agent forgot to execute**
+- Pesquisar sobre a existência de uma API para validar o Bilhete de Identidade de Angola.
+- Implementar os alertas sonoros para as notificações.
+- Implementar sistematicamente as funcionalidades de edição, exclusão e detalhes para todos os módulos, conforme solicitado.</analysis>

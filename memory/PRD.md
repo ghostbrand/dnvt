@@ -50,6 +50,6 @@ Sistema completo para gestão de acidentes de trânsito em Angola, desenvolvido 
 3. Executar `cd /app/mobile && npm install && expo start` para testar mobile
 
 ## URLs
-- **Frontend**: https://roadwatch-system-2.preview.emergentagent.com
-- **API**: https://roadwatch-system-2.preview.emergentagent.com/api
+- **Frontend**: https://safe-roads-ao.preview.emergentagent.com
+- **API**: https://safe-roads-ao.preview.emergentagent.com/api
 - **WebSocket**: wss://roadwatch-system-2.preview.emergentagent.com/ws/notifications
