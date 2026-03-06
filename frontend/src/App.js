@@ -1,53 +1,107 @@
-import { useEffect } from "react";
-import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { Toaster } from './components/ui/sonner';
+import { Loader2 } from 'lucide-react';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+// Pages
+import LoginPage from './pages/LoginPage';
+import AuthCallback from './pages/AuthCallback';
+import DashboardPage from './pages/DashboardPage';
+import MapaPage from './pages/MapaPage';
+import AcidentesPage from './pages/AcidentesPage';
+import NovoAcidentePage from './pages/NovoAcidentePage';
+import BoletinsPage from './pages/BoletinsPage';
+import ZonasCriticasPage from './pages/ZonasCriticasPage';
+import AssistenciasPage from './pages/AssistenciasPage';
+import EstatisticasPage from './pages/EstatisticasPage';
+import ConfiguracoesPage from './pages/ConfiguracoesPage';
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-8 h-8 animate-spin text-slate-900" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+}
+
+function AppRouter() {
+  const location = useLocation();
+
+  // Check URL fragment for session_id (OAuth callback)
+  if (location.hash?.includes('session_id=')) {
+    return <AuthCallback />;
+  }
 
   return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      
+      <Route path="/dashboard" element={
+        <ProtectedRoute><DashboardPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/mapa" element={
+        <ProtectedRoute><MapaPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/acidentes" element={
+        <ProtectedRoute><AcidentesPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/acidentes/novo" element={
+        <ProtectedRoute><NovoAcidentePage /></ProtectedRoute>
+      } />
+      
+      <Route path="/boletins" element={
+        <ProtectedRoute><BoletinsPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/boletins/novo" element={
+        <ProtectedRoute><BoletinsPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/zonas-criticas" element={
+        <ProtectedRoute><ZonasCriticasPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/assistencias" element={
+        <ProtectedRoute><AssistenciasPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/estatisticas" element={
+        <ProtectedRoute><EstatisticasPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/configuracoes" element={
+        <ProtectedRoute><ConfiguracoesPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
   );
-};
+}
 
 function App() {
   return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </div>
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRouter />
+        <Toaster position="top-right" richColors />
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
