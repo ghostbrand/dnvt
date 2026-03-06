@@ -74,6 +74,10 @@ function AppRouter() {
         <ProtectedRoute><NovoAcidentePage /></ProtectedRoute>
       } />
       
+      <Route path="/acidentes/:id" element={
+        <ProtectedRoute><AcidenteDetalhesPage /></ProtectedRoute>
+      } />
+      
       <Route path="/boletins" element={
         <ProtectedRoute><BoletinsPage /></ProtectedRoute>
       } />
