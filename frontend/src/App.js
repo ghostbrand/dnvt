@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Toaster } from './components/ui/sonner';
 import { Loader2 } from 'lucide-react';
+import { useWebSocket } from './hooks/useWebSocket';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -11,10 +12,21 @@ import MapaPage from './pages/MapaPage';
 import AcidentesPage from './pages/AcidentesPage';
 import NovoAcidentePage from './pages/NovoAcidentePage';
 import BoletinsPage from './pages/BoletinsPage';
+import NovoBoletimPage from './pages/NovoBoletimPage';
 import ZonasCriticasPage from './pages/ZonasCriticasPage';
 import AssistenciasPage from './pages/AssistenciasPage';
 import EstatisticasPage from './pages/EstatisticasPage';
 import ConfiguracoesPage from './pages/ConfiguracoesPage';
+
+// WebSocket wrapper component
+function WebSocketProvider({ children }) {
+  const { user } = useAuth();
+  
+  // Only connect WebSocket when user is authenticated
+  useWebSocket();
+  
+  return children;
+}
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
