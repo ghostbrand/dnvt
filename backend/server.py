@@ -1277,6 +1277,57 @@ async def root():
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
+# ==================== WEBSOCKET ENDPOINTS ====================
+
+@app.websocket("/ws/notifications")
+async def websocket_notifications(websocket: WebSocket):
+    """WebSocket endpoint for real-time notifications"""
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive and listen for messages
+            data = await websocket.receive_text()
+            # Can handle incoming messages if needed
+            logger.info(f"Received WebSocket message: {data}")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        manager.disconnect(websocket)
+
+async def notify_new_accident(acidente: dict):
+    """Send notification when new accident is created"""
+    message = {
+        "type": "NEW_ACCIDENT",
+        "data": {
+            "acidente_id": acidente["acidente_id"],
+            "tipo_acidente": acidente["tipo_acidente"],
+            "gravidade": acidente["gravidade"],
+            "latitude": acidente["latitude"],
+            "longitude": acidente["longitude"],
+            "descricao": acidente["descricao"][:100] if acidente.get("descricao") else "",
+            "created_at": acidente["created_at"]
+        },
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await manager.broadcast(message)
+
+async def notify_assistance_update(assistencia: dict, acidente_id: str):
+    """Send notification when assistance status changes"""
+    message = {
+        "type": "ASSISTANCE_UPDATE",
+        "data": {
+            "assistencia_id": assistencia["assistencia_id"],
+            "acidente_id": acidente_id,
+            "tipo": assistencia["tipo"],
+            "status": assistencia["status"],
+            "latitude_atual": assistencia.get("latitude_atual"),
+            "longitude_atual": assistencia.get("longitude_atual")
+        },
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await manager.broadcast(message)
+
 # Include router
 app.include_router(api_router)
 
