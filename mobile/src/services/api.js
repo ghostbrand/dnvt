@@ -1,73 +1,67 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_URL } from '../config';
+// API Configuration
+export const API_URL = 'https://safe-roads-ao.preview.emergentagent.com/api';
 
-const getHeaders = async () => {
-  const token = await AsyncStorage.getItem('dnvt_token');
-  return {
+// Fetch wrapper with auth
+export const fetchWithAuth = async (endpoint, options = {}, token) => {
+  const headers = {
     'Content-Type': 'application/json',
-    ...(token && { 'Authorization': `Bearer ${token}` })
+    ...options.headers,
   };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Erro desconhecido' }));
+    throw new Error(error.detail || 'Erro na requisição');
+  }
+
+  return response.json();
 };
 
-// Acidentes
-export const acidentesApi = {
-  listAtivos: async () => {
-    const headers = await getHeaders();
-    const res = await fetch(`${API_URL}/acidentes/ativos`, { headers });
-    if (!res.ok) throw new Error('Erro ao listar acidentes');
-    return res.json();
-  },
-  
-  create: async (data) => {
-    const headers = await getHeaders();
-    const res = await fetch(`${API_URL}/acidentes`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ ...data, origem_registro: 'MOBILE_CIDADAO' })
-    });
-    if (!res.ok) throw new Error('Erro ao criar acidente');
-    return res.json();
-  }
-};
+// API endpoints
+export const api = {
+  // Auth
+  login: (email, senha) => fetchWithAuth('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, senha })
+  }),
 
-// Zonas Críticas
-export const zonasApi = {
-  list: async () => {
-    const headers = await getHeaders();
-    const res = await fetch(`${API_URL}/zonas-criticas`, { headers });
-    if (!res.ok) throw new Error('Erro ao listar zonas');
-    return res.json();
-  }
-};
+  register: (data) => fetchWithAuth('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
 
-// Assistências
-export const assistenciasApi = {
-  list: async (acidenteId) => {
-    const headers = await getHeaders();
-    const url = acidenteId 
-      ? `${API_URL}/assistencias?acidente_id=${acidenteId}`
-      : `${API_URL}/assistencias`;
-    const res = await fetch(url, { headers });
-    if (!res.ok) throw new Error('Erro ao listar assistências');
-    return res.json();
-  }
-};
+  getMe: (token) => fetchWithAuth('/auth/me', {}, token),
 
-// Rotas
-export const rotasApi = {
-  verificarAcidentes: async (latOrigem, lngOrigem, latDestino, lngDestino) => {
-    const headers = await getHeaders();
-    const params = new URLSearchParams({
-      lat_origem: latOrigem,
-      lng_origem: lngOrigem,
-      lat_destino: latDestino,
-      lng_destino: lngDestino
-    });
-    const res = await fetch(`${API_URL}/rotas/verificar-acidentes?${params}`, {
-      method: 'POST',
-      headers
-    });
-    if (!res.ok) throw new Error('Erro ao verificar rota');
-    return res.json();
-  }
+  updateProfile: (data, token) => fetchWithAuth('/usuarios/me', {
+    method: 'PATCH',
+    body: JSON.stringify(data)
+  }, token),
+
+  // Acidentes
+  getAcidentes: (token) => fetchWithAuth('/acidentes', {}, token),
+  getAcidentesAtivos: (token) => fetchWithAuth('/acidentes/ativos', {}, token),
+  getAcidente: (id, token) => fetchWithAuth(`/acidentes/${id}`, {}, token),
+  createAcidente: (data, token) => fetchWithAuth('/acidentes', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }, token),
+
+  // Estatisticas
+  getEstatisticas: () => fetchWithAuth('/estatisticas/resumo'),
+
+  // Zonas Criticas
+  getZonasCriticas: () => fetchWithAuth('/zonas-criticas'),
+
+  // Verificar rota
+  verificarRota: (origem, destino) => fetchWithAuth(
+    `/rotas/verificar-acidentes?lat_origem=${origem.latitude}&lng_origem=${origem.longitude}&lat_destino=${destino.latitude}&lng_destino=${destino.longitude}`
+  ),
 };
