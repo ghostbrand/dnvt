@@ -1,243 +1,348 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
   RefreshControl,
-  Alert
+  TouchableOpacity,
+  Animated,
+  Dimensions
 } from 'react-native';
-import * as Location from 'expo-location';
 import { useAuth } from '../contexts/AuthContext';
-import { acidentesApi, zonasApi } from '../services/api';
+import { api } from '../services/api';
+import KahootButton from '../components/KahootButton';
+import KahootCard from '../components/KahootCard';
+import { AnimatedStatCard } from '../components/StatCard';
+import { COLORS, SPACING, FONTS, RADIUS, SHADOWS } from '../config';
+
+const { width } = Dimensions.get('window');
 
 export default function HomeScreen({ navigation }) {
-  const { user, logout } = useAuth();
-  const [stats, setStats] = useState({
-    acidentes_ativos: 0,
-    zonas_criticas: 0
-  });
-  const [loading, setLoading] = useState(true);
-  const [location, setLocation] = useState(null);
+  const { user, logout, token } = useAuth();
+  const [stats, setStats] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [recentAccidents, setRecentAccidents] = useState([]);
+  
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
 
   useEffect(() => {
-    requestLocationPermission();
-    fetchData();
+    loadData();
+    
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
-  const requestLocationPermission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status === 'granted') {
-      const loc = await Location.getCurrentPositionAsync({});
-      setLocation(loc.coords);
-    }
-  };
-
-  const fetchData = async () => {
-    setLoading(true);
+  const loadData = async () => {
     try {
-      const [acidentes, zonas] = await Promise.all([
-        acidentesApi.listAtivos(),
-        zonasApi.list()
+      const [statsData, accidentsData] = await Promise.all([
+        api.getEstatisticas(),
+        api.getAcidentesAtivos(token)
       ]);
-      setStats({
-        acidentes_ativos: acidentes.length,
-        zonas_criticas: zonas.filter(z => z.nivel_risco === 'ALTO').length
-      });
+      setStats(statsData);
+      setRecentAccidents(accidentsData.slice(0, 3));
     } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error loading data:', error);
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Sair',
-      'Deseja realmente sair?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Sair', onPress: logout, style: 'destructive' }
-      ]
-    );
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const menuItems = [
+    { 
+      id: 'map', 
+      title: 'Ver Mapa', 
+      emoji: '🗺️', 
+      color: COLORS.blue,
+      screen: 'Map',
+      description: 'Acidentes em tempo real'
+    },
+    { 
+      id: 'report', 
+      title: 'Reportar', 
+      emoji: '🚨', 
+      color: COLORS.red,
+      screen: 'ReportAccident',
+      description: 'Reportar acidente'
+    },
+    { 
+      id: 'alerts', 
+      title: 'Alertas', 
+      emoji: '🔔', 
+      color: COLORS.orange,
+      screen: 'Alerts',
+      description: 'Notificações'
+    },
+    { 
+      id: 'profile', 
+      title: 'Perfil', 
+      emoji: '👤', 
+      color: COLORS.purple,
+      screen: 'Profile',
+      description: 'Meus dados'
+    },
+  ];
+
+  const getGravidadeColor = (gravidade) => {
+    const colors = {
+      'FATAL': COLORS.red,
+      'GRAVE': COLORS.orange,
+      'MODERADO': COLORS.yellow,
+      'LEVE': COLORS.green,
+    };
+    return colors[gravidade] || COLORS.gray;
   };
 
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={loading} onRefresh={fetchData} />
-      }
-    >
-      {/* Welcome */}
-      <View style={styles.welcome}>
-        <Text style={styles.welcomeText}>Olá, {user?.nome?.split(' ')[0]}!</Text>
-        <Text style={styles.welcomeSubtext}>Bem-vindo ao sistema DNVT</Text>
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.greeting}>Olá, {user?.nome?.split(' ')[0]}! 👋</Text>
+          <Text style={styles.headerSubtitle}>Bem-vindo ao DNVT</Text>
+        </View>
+        <TouchableOpacity onPress={logout} style={styles.logoutButton}>
+          <Text style={styles.logoutText}>Sair</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Stats */}
-      <View style={styles.statsRow}>
-        <View style={[styles.statCard, { backgroundColor: '#FEE2E2' }]}>
-          <Text style={[styles.statNumber, { color: '#DC2626' }]}>{stats.acidentes_ativos}</Text>
-          <Text style={styles.statLabel}>Acidentes Ativos</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: '#FEF3C7' }]}>
-          <Text style={[styles.statNumber, { color: '#D97706' }]}>{stats.zonas_criticas}</Text>
-          <Text style={styles.statLabel}>Zonas Alto Risco</Text>
-        </View>
-      </View>
-
-      {/* Quick Actions */}
-      <Text style={styles.sectionTitle}>Ações Rápidas</Text>
-      
-      <TouchableOpacity 
-        style={[styles.actionButton, { backgroundColor: '#DC2626' }]}
-        onPress={() => navigation.navigate('ReportAccident', { location })}
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={COLORS.white}
+          />
+        }
       >
-        <Text style={styles.actionIcon}>🚨</Text>
-        <View style={styles.actionText}>
-          <Text style={styles.actionTitle}>Reportar Acidente</Text>
-          <Text style={styles.actionSubtitle}>Informe um acidente em tempo real</Text>
+        {/* Stats Cards */}
+        <Animated.View 
+          style={[
+            styles.statsContainer,
+            { 
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          <View style={styles.statsRow}>
+            <AnimatedStatCard 
+              value={stats?.acidentes_ativos || 0}
+              label="Acidentes Ativos"
+              color={COLORS.red}
+              delay={0}
+            />
+            <AnimatedStatCard 
+              value={stats?.acidentes_hoje || 0}
+              label="Hoje"
+              color={COLORS.orange}
+              delay={100}
+            />
+          </View>
+          <View style={styles.statsRow}>
+            <AnimatedStatCard 
+              value={stats?.assistencias_ativas || 0}
+              label="Assistências"
+              color={COLORS.blue}
+              delay={200}
+            />
+            <AnimatedStatCard 
+              value={stats?.total_acidentes || 0}
+              label="Total"
+              color={COLORS.purple}
+              delay={300}
+            />
+          </View>
+        </Animated.View>
+
+        {/* Menu Grid */}
+        <Text style={styles.sectionTitle}>Acesso Rápido</Text>
+        <View style={styles.menuGrid}>
+          {menuItems.map((item, index) => (
+            <TouchableOpacity
+              key={item.id}
+              style={[styles.menuItem, { backgroundColor: item.color }]}
+              onPress={() => navigation.navigate(item.screen)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.menuEmoji}>{item.emoji}</Text>
+              <Text style={styles.menuTitle}>{item.title}</Text>
+              <Text style={styles.menuDesc}>{item.description}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
-      </TouchableOpacity>
 
-      <TouchableOpacity 
-        style={[styles.actionButton, { backgroundColor: '#2563EB' }]}
-        onPress={() => navigation.navigate('Map')}
-      >
-        <Text style={styles.actionIcon}>🗺️</Text>
-        <View style={styles.actionText}>
-          <Text style={styles.actionTitle}>Ver Mapa</Text>
-          <Text style={styles.actionSubtitle}>Visualize acidentes e zonas críticas</Text>
-        </View>
-      </TouchableOpacity>
+        {/* Recent Accidents */}
+        {recentAccidents.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Acidentes Recentes</Text>
+            {recentAccidents.map((accident, index) => (
+              <KahootCard 
+                key={accident.acidente_id}
+                accentColor={getGravidadeColor(accident.gravidade)}
+                style={styles.accidentCard}
+              >
+                <View style={styles.accidentHeader}>
+                  <View style={[
+                    styles.gravityBadge, 
+                    { backgroundColor: getGravidadeColor(accident.gravidade) }
+                  ]}>
+                    <Text style={styles.gravityText}>{accident.gravidade}</Text>
+                  </View>
+                  <Text style={styles.accidentType}>
+                    {accident.tipo_acidente?.replace(/_/g, ' ')}
+                  </Text>
+                </View>
+                <Text style={styles.accidentDesc} numberOfLines={2}>
+                  {accident.descricao}
+                </Text>
+                <Text style={styles.accidentTime}>
+                  {new Date(accident.created_at).toLocaleString('pt-AO')}
+                </Text>
+              </KahootCard>
+            ))}
+          </>
+        )}
 
-      <TouchableOpacity 
-        style={[styles.actionButton, { backgroundColor: '#059669' }]}
-        onPress={() => navigation.navigate('Alerts')}
-      >
-        <Text style={styles.actionIcon}>🔔</Text>
-        <View style={styles.actionText}>
-          <Text style={styles.actionTitle}>Alertas</Text>
-          <Text style={styles.actionSubtitle}>Receba notificações de acidentes</Text>
-        </View>
-      </TouchableOpacity>
-
-      {/* Profile */}
-      <TouchableOpacity 
-        style={styles.profileButton}
-        onPress={() => navigation.navigate('Profile')}
-      >
-        <Text style={styles.profileButtonText}>👤 Meu Perfil</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity 
-        style={styles.logoutButton}
-        onPress={handleLogout}
-      >
-        <Text style={styles.logoutButtonText}>Sair</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9'
+    backgroundColor: COLORS.purple,
   },
-  welcome: {
-    backgroundColor: '#0F172A',
-    padding: 20,
-    paddingTop: 10
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingTop: 60,
+    paddingBottom: SPACING.lg,
   },
-  welcomeText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold'
+  greeting: {
+    fontSize: FONTS.xl,
+    fontWeight: 'bold',
+    color: COLORS.white,
   },
-  welcomeSubtext: {
-    color: '#94A3B8',
-    fontSize: 14,
-    marginTop: 4
+  headerSubtitle: {
+    fontSize: FONTS.sm,
+    color: COLORS.white,
+    opacity: 0.8,
+    marginTop: SPACING.xs,
+  },
+  logoutButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+  },
+  logoutText: {
+    color: COLORS.white,
+    fontWeight: '600',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: SPACING.md,
+  },
+  statsContainer: {
+    marginBottom: SPACING.lg,
   },
   statsRow: {
     flexDirection: 'row',
-    padding: 16,
-    gap: 12
-  },
-  statCard: {
-    flex: 1,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center'
-  },
-  statNumber: {
-    fontSize: 32,
-    fontWeight: 'bold'
-  },
-  statLabel: {
-    color: '#64748B',
-    fontSize: 12,
-    marginTop: 4,
-    textAlign: 'center'
+    marginBottom: SPACING.xs,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: FONTS.lg,
     fontWeight: 'bold',
-    color: '#0F172A',
-    paddingHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 12
+    color: COLORS.white,
+    marginBottom: SPACING.md,
+    marginLeft: SPACING.xs,
   },
-  actionButton: {
+  menuGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.xl,
+  },
+  menuItem: {
+    width: (width - SPACING.md * 2 - SPACING.sm) / 2,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.sm,
+    ...SHADOWS.medium,
+    borderBottomWidth: 4,
+    borderBottomColor: 'rgba(0,0,0,0.2)',
+  },
+  menuEmoji: {
+    fontSize: 36,
+    marginBottom: SPACING.sm,
+  },
+  menuTitle: {
+    fontSize: FONTS.md,
+    fontWeight: 'bold',
+    color: COLORS.white,
+  },
+  menuDesc: {
+    fontSize: FONTS.xs,
+    color: COLORS.white,
+    opacity: 0.8,
+    marginTop: SPACING.xs,
+  },
+  accidentCard: {
+    marginBottom: SPACING.sm,
+  },
+  accidentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 16,
-    borderRadius: 12
+    marginBottom: SPACING.sm,
   },
-  actionIcon: {
-    fontSize: 28,
-    marginRight: 16
+  gravityBadge: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.sm,
+    marginRight: SPACING.sm,
   },
-  actionText: {
-    flex: 1
+  gravityText: {
+    color: COLORS.white,
+    fontSize: FONTS.xs,
+    fontWeight: 'bold',
   },
-  actionTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold'
+  accidentType: {
+    fontSize: FONTS.sm,
+    color: COLORS.gray,
+    flex: 1,
   },
-  actionSubtitle: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 12,
-    marginTop: 2
+  accidentDesc: {
+    fontSize: FONTS.sm,
+    color: COLORS.black,
+    marginBottom: SPACING.xs,
   },
-  profileButton: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    padding: 16,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    alignItems: 'center'
+  accidentTime: {
+    fontSize: FONTS.xs,
+    color: COLORS.gray,
   },
-  profileButtonText: {
-    color: '#0F172A',
-    fontWeight: '600'
+  bottomSpacer: {
+    height: 40,
   },
-  logoutButton: {
-    marginHorizontal: 16,
-    marginVertical: 16,
-    padding: 16,
-    backgroundColor: '#FEE2E2',
-    borderRadius: 12,
-    alignItems: 'center'
-  },
-  logoutButtonText: {
-    color: '#DC2626',
-    fontWeight: '600'
-  }
 });

@@ -1,46 +1,71 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  KeyboardAvoidingView, 
   Platform,
-  Alert,
-  ActivityIndicator
+  ScrollView,
+  Animated,
+  TouchableOpacity
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import KahootButton from '../components/KahootButton';
+import KahootInput from '../components/KahootInput';
+import { COLORS, SPACING, FONTS, RADIUS } from '../config';
 
 export default function LoginScreen() {
   const { login, register } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
 
-  const handleSubmit = async () => {
-    if (!email || !senha) {
-      Alert.alert('Erro', 'Preencha todos os campos');
-      return;
-    }
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const logoAnim = useRef(new Animated.Value(0)).current;
 
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(logoAnim, {
+        toValue: 1,
+        friction: 6,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const toggleMode = () => {
+    Animated.timing(slideAnim, {
+      toValue: isLogin ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+    setIsLogin(!isLogin);
+    setError('');
+  };
+
+  const handleSubmit = async () => {
+    setError('');
     setLoading(true);
+
     try {
       if (isLogin) {
         await login(email, senha);
       } else {
-        if (!nome) {
-          Alert.alert('Erro', 'Preencha o nome');
-          return;
-        }
         await register(nome, email, senha, telefone);
       }
-    } catch (error) {
-      Alert.alert('Erro', error.message);
+    } catch (err) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -51,80 +76,113 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.header}>
-        <Text style={styles.logo}>🚗 DNVT</Text>
-        <Text style={styles.subtitle}>Sistema de Acidentes de Trânsito</Text>
-      </View>
-
-      <View style={styles.card}>
-        <View style={styles.tabs}>
-          <TouchableOpacity 
-            style={[styles.tab, isLogin && styles.tabActive]}
-            onPress={() => setIsLogin(true)}
-          >
-            <Text style={[styles.tabText, isLogin && styles.tabTextActive]}>Entrar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.tab, !isLogin && styles.tabActive]}
-            onPress={() => setIsLogin(false)}
-          >
-            <Text style={[styles.tabText, !isLogin && styles.tabTextActive]}>Registrar</Text>
-          </TouchableOpacity>
-        </View>
-
-        {!isLogin && (
-          <>
-            <TextInput
-              style={styles.input}
-              placeholder="Nome completo"
-              placeholderTextColor="#94A3B8"
-              value={nome}
-              onChangeText={setNome}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Telefone"
-              placeholderTextColor="#94A3B8"
-              value={telefone}
-              onChangeText={setTelefone}
-              keyboardType="phone-pad"
-            />
-          </>
-        )}
-
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#94A3B8"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-
-        <TextInput
-          style={styles.input}
-          placeholder="Senha"
-          placeholderTextColor="#94A3B8"
-          value={senha}
-          onChangeText={setSenha}
-          secureTextEntry
-        />
-
-        <TouchableOpacity 
-          style={styles.button}
-          onPress={handleSubmit}
-          disabled={loading}
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View 
+          style={[
+            styles.header,
+            { 
+              opacity: fadeAnim,
+              transform: [{ 
+                scale: logoAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.5, 1],
+                })
+              }]
+            }
+          ]}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>{isLogin ? 'Entrar' : 'Criar Conta'}</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+          <View style={styles.logoContainer}>
+            <Text style={styles.logoEmoji}>🚗</Text>
+          </View>
+          <Text style={styles.title}>DNVT</Text>
+          <Text style={styles.subtitle}>Trânsito Seguro em Angola</Text>
+        </Animated.View>
 
-      <Text style={styles.footer}>Angola © 2026 - DNVT</Text>
+        <Animated.View style={[styles.formContainer, { opacity: fadeAnim }]}>
+          {/* Tab Switcher */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity 
+              onPress={() => isLogin || toggleMode()}
+              style={[styles.tab, isLogin && styles.tabActive]}
+            >
+              <Text style={[styles.tabText, isLogin && styles.tabTextActive]}>
+                Entrar
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => !isLogin || toggleMode()}
+              style={[styles.tab, !isLogin && styles.tabActive]}
+            >
+              <Text style={[styles.tabText, !isLogin && styles.tabTextActive]}>
+                Registrar
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Form */}
+          <View style={styles.form}>
+            {!isLogin && (
+              <>
+                <KahootInput
+                  label="Nome Completo"
+                  value={nome}
+                  onChangeText={setNome}
+                  placeholder="Seu nome"
+                  autoCapitalize="words"
+                />
+                <KahootInput
+                  label="Telefone"
+                  value={telefone}
+                  onChangeText={setTelefone}
+                  placeholder="+244 923 456 789"
+                  keyboardType="phone-pad"
+                />
+              </>
+            )}
+
+            <KahootInput
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="seu@email.com"
+              keyboardType="email-address"
+            />
+
+            <KahootInput
+              label="Senha"
+              value={senha}
+              onChangeText={setSenha}
+              placeholder="••••••••"
+              secureTextEntry
+            />
+
+            {error ? (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>⚠️ {error}</Text>
+              </View>
+            ) : null}
+
+            <KahootButton
+              title={loading ? 'Aguarde...' : (isLogin ? 'Entrar' : 'Criar Conta')}
+              onPress={handleSubmit}
+              color={COLORS.green}
+              size="lg"
+              disabled={loading}
+              style={styles.submitButton}
+            />
+          </View>
+        </Animated.View>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            Direção Nacional de Viação e Trânsito
+          </Text>
+          <Text style={styles.footerSubtext}>Angola 🇦🇴</Text>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -132,74 +190,101 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
-    justifyContent: 'center',
-    padding: 20
+    backgroundColor: COLORS.purple,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: 60,
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40
+    marginBottom: SPACING.xl,
   },
-  logo: {
-    fontSize: 40,
+  logoContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: COLORS.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  logoEmoji: {
+    fontSize: 50,
+  },
+  title: {
+    fontSize: FONTS.giant,
     fontWeight: 'bold',
-    color: '#fff'
+    color: COLORS.white,
+    letterSpacing: 4,
   },
   subtitle: {
-    color: '#94A3B8',
-    fontSize: 14,
-    marginTop: 8
+    fontSize: FONTS.md,
+    color: COLORS.white,
+    opacity: 0.8,
+    marginTop: SPACING.xs,
   },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24
+  formContainer: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: RADIUS.xl,
+    padding: SPACING.lg,
   },
-  tabs: {
+  tabContainer: {
     flexDirection: 'row',
-    marginBottom: 20
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: RADIUS.md,
+    padding: 4,
+    marginBottom: SPACING.lg,
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: SPACING.sm,
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: '#E2E8F0'
+    borderRadius: RADIUS.sm,
   },
   tabActive: {
-    borderBottomColor: '#0F172A'
+    backgroundColor: COLORS.white,
   },
   tabText: {
-    color: '#94A3B8',
-    fontWeight: '600'
+    fontSize: FONTS.md,
+    fontWeight: '600',
+    color: COLORS.white,
   },
   tabTextActive: {
-    color: '#0F172A'
+    color: COLORS.purple,
   },
-  input: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-    fontSize: 16,
-    color: '#0F172A'
+  form: {
+    marginTop: SPACING.sm,
   },
-  button: {
-    backgroundColor: '#0F172A',
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8
+  errorContainer: {
+    backgroundColor: COLORS.red,
+    padding: SPACING.md,
+    borderRadius: RADIUS.md,
+    marginBottom: SPACING.md,
   },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16
+  errorText: {
+    color: COLORS.white,
+    fontSize: FONTS.sm,
+    textAlign: 'center',
+  },
+  submitButton: {
+    marginTop: SPACING.md,
   },
   footer: {
-    color: '#64748B',
-    textAlign: 'center',
-    marginTop: 40,
-    fontSize: 12
-  }
+    marginTop: SPACING.xxl,
+    alignItems: 'center',
+  },
+  footerText: {
+    color: COLORS.white,
+    opacity: 0.7,
+    fontSize: FONTS.sm,
+  },
+  footerSubtext: {
+    color: COLORS.white,
+    opacity: 0.5,
+    fontSize: FONTS.xs,
+    marginTop: SPACING.xs,
+  },
 });
