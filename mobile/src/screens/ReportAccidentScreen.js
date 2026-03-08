@@ -1,350 +1,446 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
   ScrollView,
-  Alert,
-  ActivityIndicator
+  TouchableOpacity,
+  Animated,
+  Alert
 } from 'react-native';
 import * as Location from 'expo-location';
-import { acidentesApi } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { api } from '../services/api';
+import KahootButton from '../components/KahootButton';
+import KahootInput from '../components/KahootInput';
+import { COLORS, SPACING, FONTS, RADIUS } from '../config';
 
-const TIPOS_ACIDENTE = [
-  { value: 'COLISAO_FRONTAL', label: 'Colisão Frontal' },
-  { value: 'COLISAO_TRASEIRA', label: 'Colisão Traseira' },
-  { value: 'COLISAO_LATERAL', label: 'Colisão Lateral' },
-  { value: 'CAPOTAMENTO', label: 'Capotamento' },
-  { value: 'ATROPELAMENTO', label: 'Atropelamento' },
-  { value: 'OUTRO', label: 'Outro' },
+const GRAVIDADES = ['LEVE', 'MODERADO', 'GRAVE', 'FATAL'];
+const TIPOS = [
+  { id: 'COLISAO_FRONTAL', label: 'Colisão Frontal', emoji: '💥' },
+  { id: 'COLISAO_TRASEIRA', label: 'Colisão Traseira', emoji: '🚗' },
+  { id: 'ATROPELAMENTO', label: 'Atropelamento', emoji: '🚶' },
+  { id: 'CAPOTAMENTO', label: 'Capotamento', emoji: '🔄' },
+  { id: 'CHOQUE_OBSTACULO', label: 'Choque em Obstáculo', emoji: '🚧' },
+  { id: 'OUTRO', label: 'Outro', emoji: '❓' },
 ];
 
-const GRAVIDADES = [
-  { value: 'LEVE', label: 'Leve', color: '#16A34A' },
-  { value: 'MODERADO', label: 'Moderado', color: '#D97706' },
-  { value: 'GRAVE', label: 'Grave', color: '#EA580C' },
-  { value: 'FATAL', label: 'Fatal', color: '#DC2626' },
-];
-
-export default function ReportAccidentScreen({ navigation, route }) {
+export default function ReportAccidentScreen({ navigation }) {
+  const { token } = useAuth();
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [gettingLocation, setGettingLocation] = useState(false);
+  const [location, setLocation] = useState(null);
   
   const [formData, setFormData] = useState({
-    latitude: route.params?.location?.latitude || -8.8368,
-    longitude: route.params?.location?.longitude || 13.2343,
-    descricao: '',
-    tipo_acidente: 'OUTRO',
+    tipo_acidente: '',
     gravidade: 'MODERADO',
+    descricao: '',
+    numero_veiculos: '1',
     numero_vitimas: '0',
-    numero_veiculos: '1'
   });
 
-  const getCurrentLocation = async () => {
-    setGettingLocation(true);
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    getLocation();
+  }, []);
+
+  useEffect(() => {
+    Animated.spring(progressAnim, {
+      toValue: (step - 1) / 2,
+      friction: 8,
+      useNativeDriver: false,
+    }).start();
+  }, [step]);
+
+  const getLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Erro', 'Permissão de localização negada');
+        Alert.alert('Erro', 'Permissão de localização necessária');
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High
+      const loc = await Location.getCurrentPositionAsync({});
+      setLocation({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
       });
-      
-      setFormData({
-        ...formData,
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude
-      });
-      
-      Alert.alert('Sucesso', 'Localização atualizada');
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível obter a localização');
-    } finally {
-      setGettingLocation(false);
+      Alert.alert('Erro', 'Não foi possível obter localização');
     }
   };
 
   const handleSubmit = async () => {
-    if (!formData.descricao.trim()) {
-      Alert.alert('Erro', 'Por favor, descreva o acidente');
+    if (!location) {
+      Alert.alert('Erro', 'Localização não disponível');
       return;
     }
 
     setLoading(true);
     try {
-      await acidentesApi.create({
+      await api.createAcidente({
         ...formData,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        numero_veiculos: parseInt(formData.numero_veiculos) || 1,
         numero_vitimas: parseInt(formData.numero_vitimas) || 0,
-        numero_veiculos: parseInt(formData.numero_veiculos) || 1
-      });
-      
+        origem_registro: 'MOBILE_CIDADAO',
+      }, token);
+
       Alert.alert(
-        'Sucesso',
-        'Acidente reportado com sucesso. Obrigado pela sua colaboração!',
+        '✅ Sucesso!', 
+        'Acidente reportado com sucesso. Obrigado por contribuir para a segurança no trânsito!',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível reportar o acidente');
+      Alert.alert('Erro', error.message);
     } finally {
       setLoading(false);
     }
   };
 
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
+
   return (
-    <ScrollView style={styles.container}>
-      {/* Location */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📍 Localização</Text>
-        <TouchableOpacity 
-          style={styles.locationButton}
-          onPress={getCurrentLocation}
-          disabled={gettingLocation}
-        >
-          {gettingLocation ? (
-            <ActivityIndicator color="#0F172A" />
-          ) : (
-            <Text style={styles.locationButtonText}>Usar Minha Localização</Text>
-          )}
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Text style={styles.backText}>← Voltar</Text>
         </TouchableOpacity>
-        <Text style={styles.coordinates}>
-          Lat: {formData.latitude.toFixed(6)} | Lng: {formData.longitude.toFixed(6)}
-        </Text>
+        <Text style={styles.headerTitle}>Reportar Acidente</Text>
+        <View style={styles.placeholder} />
       </View>
 
-      {/* Type */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🚗 Tipo de Acidente</Text>
-        <View style={styles.optionsRow}>
-          {TIPOS_ACIDENTE.map((tipo) => (
-            <TouchableOpacity
-              key={tipo.value}
-              style={[
-                styles.optionButton,
-                formData.tipo_acidente === tipo.value && styles.optionButtonActive
-              ]}
-              onPress={() => setFormData({ ...formData, tipo_acidente: tipo.value })}
-            >
-              <Text style={[
-                styles.optionText,
-                formData.tipo_acidente === tipo.value && styles.optionTextActive
-              ]}>
-                {tipo.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      {/* Progress Bar */}
+      <View style={styles.progressContainer}>
+        <View style={styles.progressBg}>
+          <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
         </View>
+        <Text style={styles.progressText}>Passo {step} de 3</Text>
       </View>
 
-      {/* Severity */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>⚠️ Gravidade</Text>
-        <View style={styles.severityRow}>
-          {GRAVIDADES.map((grav) => (
-            <TouchableOpacity
-              key={grav.value}
-              style={[
-                styles.severityButton,
-                { borderColor: grav.color },
-                formData.gravidade === grav.value && { backgroundColor: grav.color }
-              ]}
-              onPress={() => setFormData({ ...formData, gravidade: grav.value })}
-            >
-              <Text style={[
-                styles.severityText,
-                { color: grav.color },
-                formData.gravidade === grav.value && { color: '#fff' }
-              ]}>
-                {grav.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Step 1: Type Selection */}
+        {step === 1 && (
+          <View style={styles.stepContainer}>
+            <Text style={styles.stepTitle}>Qual o tipo de acidente?</Text>
+            <Text style={styles.stepSubtitle}>Selecione uma opção</Text>
+            
+            <View style={styles.optionsGrid}>
+              {TIPOS.map((tipo) => (
+                <TouchableOpacity
+                  key={tipo.id}
+                  style={[
+                    styles.optionCard,
+                    formData.tipo_acidente === tipo.id && styles.optionCardSelected
+                  ]}
+                  onPress={() => setFormData({ ...formData, tipo_acidente: tipo.id })}
+                >
+                  <Text style={styles.optionEmoji}>{tipo.emoji}</Text>
+                  <Text style={[
+                    styles.optionLabel,
+                    formData.tipo_acidente === tipo.id && styles.optionLabelSelected
+                  ]}>
+                    {tipo.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-      {/* Description */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📝 Descrição</Text>
-        <TextInput
-          style={styles.textArea}
-          placeholder="Descreva o que aconteceu..."
-          placeholderTextColor="#94A3B8"
-          multiline
-          numberOfLines={4}
-          value={formData.descricao}
-          onChangeText={(text) => setFormData({ ...formData, descricao: text })}
-        />
-      </View>
-
-      {/* Numbers */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>👥 Envolvidos</Text>
-        <View style={styles.numberRow}>
-          <View style={styles.numberInput}>
-            <Text style={styles.numberLabel}>Vítimas</Text>
-            <TextInput
-              style={styles.numberField}
-              keyboardType="number-pad"
-              value={formData.numero_vitimas}
-              onChangeText={(text) => setFormData({ ...formData, numero_vitimas: text })}
+            <KahootButton
+              title="Próximo"
+              onPress={() => setStep(2)}
+              color={COLORS.blue}
+              size="lg"
+              disabled={!formData.tipo_acidente}
+              style={styles.nextButton}
             />
           </View>
-          <View style={styles.numberInput}>
-            <Text style={styles.numberLabel}>Veículos</Text>
-            <TextInput
-              style={styles.numberField}
-              keyboardType="number-pad"
-              value={formData.numero_veiculos}
-              onChangeText={(text) => setFormData({ ...formData, numero_veiculos: text })}
-            />
-          </View>
-        </View>
-      </View>
-
-      {/* Submit */}
-      <TouchableOpacity
-        style={styles.submitButton}
-        onPress={handleSubmit}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.submitButtonText}>🚨 Enviar Reporte</Text>
         )}
-      </TouchableOpacity>
 
-      <Text style={styles.disclaimer}>
-        Ao enviar este reporte, você está ajudando a melhorar a segurança viária em Angola.
-      </Text>
-    </ScrollView>
+        {/* Step 2: Gravity Selection */}
+        {step === 2 && (
+          <View style={styles.stepContainer}>
+            <Text style={styles.stepTitle}>Qual a gravidade?</Text>
+            <Text style={styles.stepSubtitle}>Selecione com base na situação</Text>
+            
+            <View style={styles.gravityOptions}>
+              {GRAVIDADES.map((grav) => {
+                const colors = {
+                  'LEVE': COLORS.green,
+                  'MODERADO': COLORS.yellow,
+                  'GRAVE': COLORS.orange,
+                  'FATAL': COLORS.red,
+                };
+                return (
+                  <TouchableOpacity
+                    key={grav}
+                    style={[
+                      styles.gravityCard,
+                      { backgroundColor: colors[grav] },
+                      formData.gravidade === grav && styles.gravityCardSelected
+                    ]}
+                    onPress={() => setFormData({ ...formData, gravidade: grav })}
+                  >
+                    <Text style={styles.gravityText}>{grav}</Text>
+                    {formData.gravidade === grav && (
+                      <Text style={styles.gravityCheck}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.buttonRow}>
+              <KahootButton
+                title="Voltar"
+                onPress={() => setStep(1)}
+                color={COLORS.gray}
+                size="md"
+                style={styles.backBtn}
+              />
+              <KahootButton
+                title="Próximo"
+                onPress={() => setStep(3)}
+                color={COLORS.blue}
+                size="md"
+                style={styles.nextBtn}
+              />
+            </View>
+          </View>
+        )}
+
+        {/* Step 3: Details */}
+        {step === 3 && (
+          <View style={styles.stepContainer}>
+            <Text style={styles.stepTitle}>Detalhes do Acidente</Text>
+            <Text style={styles.stepSubtitle}>Preencha as informações</Text>
+
+            <KahootInput
+              label="Descrição"
+              value={formData.descricao}
+              onChangeText={(text) => setFormData({ ...formData, descricao: text })}
+              placeholder="Descreva o que aconteceu..."
+            />
+
+            <View style={styles.numberRow}>
+              <View style={styles.numberInput}>
+                <KahootInput
+                  label="Nº Veículos"
+                  value={formData.numero_veiculos}
+                  onChangeText={(text) => setFormData({ ...formData, numero_veiculos: text })}
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={styles.numberInput}>
+                <KahootInput
+                  label="Nº Vítimas"
+                  value={formData.numero_vitimas}
+                  onChangeText={(text) => setFormData({ ...formData, numero_vitimas: text })}
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+
+            {/* Location Status */}
+            <View style={[
+              styles.locationStatus,
+              { backgroundColor: location ? COLORS.green : COLORS.orange }
+            ]}>
+              <Text style={styles.locationText}>
+                {location ? '📍 Localização obtida' : '⏳ Obtendo localização...'}
+              </Text>
+            </View>
+
+            <View style={styles.buttonRow}>
+              <KahootButton
+                title="Voltar"
+                onPress={() => setStep(2)}
+                color={COLORS.gray}
+                size="md"
+                style={styles.backBtn}
+              />
+              <KahootButton
+                title={loading ? 'Enviando...' : 'Enviar Reporte'}
+                onPress={handleSubmit}
+                color={COLORS.green}
+                size="md"
+                disabled={loading || !formData.descricao || !location}
+                style={styles.nextBtn}
+              />
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
-    padding: 16
+    backgroundColor: COLORS.purple,
   },
-  section: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#0F172A',
-    marginBottom: 12
-  },
-  locationButton: {
-    backgroundColor: '#F1F5F9',
-    padding: 16,
-    borderRadius: 8,
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8
+    paddingTop: 50,
+    paddingBottom: SPACING.md,
+    paddingHorizontal: SPACING.md,
   },
-  locationButtonText: {
-    color: '#0F172A',
-    fontWeight: '600'
+  backButton: {
+    padding: SPACING.sm,
   },
-  coordinates: {
-    color: '#64748B',
-    fontSize: 12,
+  backText: {
+    color: COLORS.white,
+    fontSize: FONTS.md,
+  },
+  headerTitle: {
+    color: COLORS.white,
+    fontSize: FONTS.lg,
+    fontWeight: 'bold',
+  },
+  placeholder: {
+    width: 60,
+  },
+  progressContainer: {
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.md,
+  },
+  progressBg: {
+    height: 8,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: COLORS.green,
+    borderRadius: 4,
+  },
+  progressText: {
+    color: COLORS.white,
+    fontSize: FONTS.sm,
+    marginTop: SPACING.xs,
     textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace'
   },
-  optionsRow: {
+  content: {
+    flex: 1,
+    paddingHorizontal: SPACING.lg,
+  },
+  stepContainer: {
+    paddingTop: SPACING.md,
+  },
+  stepTitle: {
+    fontSize: FONTS.xl,
+    fontWeight: 'bold',
+    color: COLORS.white,
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
+  },
+  stepSubtitle: {
+    fontSize: FONTS.md,
+    color: COLORS.white,
+    opacity: 0.8,
+    textAlign: 'center',
+    marginBottom: SPACING.xl,
+  },
+  optionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8
+    justifyContent: 'space-between',
+    marginBottom: SPACING.lg,
   },
-  optionButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-    borderWidth: 1,
-    borderColor: '#E2E8F0'
+  optionCard: {
+    width: '48%',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+    borderWidth: 3,
+    borderColor: 'transparent',
   },
-  optionButtonActive: {
-    backgroundColor: '#0F172A',
-    borderColor: '#0F172A'
+  optionCardSelected: {
+    backgroundColor: COLORS.white,
+    borderColor: COLORS.green,
   },
-  optionText: {
-    color: '#64748B',
-    fontSize: 13
+  optionEmoji: {
+    fontSize: 36,
+    marginBottom: SPACING.sm,
   },
-  optionTextActive: {
-    color: '#fff'
+  optionLabel: {
+    color: COLORS.white,
+    fontSize: FONTS.sm,
+    fontWeight: '600',
+    textAlign: 'center',
   },
-  severityRow: {
+  optionLabelSelected: {
+    color: COLORS.purple,
+  },
+  gravityOptions: {
+    marginBottom: SPACING.lg,
+  },
+  gravityCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: SPACING.lg,
+    borderRadius: RADIUS.md,
+    marginBottom: SPACING.sm,
+    borderWidth: 4,
+    borderColor: 'transparent',
   },
-  severityButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 2,
-    marginHorizontal: 4,
-    alignItems: 'center'
+  gravityCardSelected: {
+    borderColor: COLORS.white,
   },
-  severityText: {
+  gravityText: {
+    color: COLORS.white,
+    fontSize: FONTS.lg,
     fontWeight: 'bold',
-    fontSize: 12
   },
-  textArea: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 8,
-    padding: 12,
-    minHeight: 100,
-    textAlignVertical: 'top',
-    color: '#0F172A'
+  gravityCheck: {
+    color: COLORS.white,
+    fontSize: FONTS.xl,
+    fontWeight: 'bold',
   },
   numberRow: {
     flexDirection: 'row',
-    gap: 12
+    justifyContent: 'space-between',
   },
   numberInput: {
-    flex: 1
+    width: '48%',
   },
-  numberLabel: {
-    color: '#64748B',
-    fontSize: 12,
-    marginBottom: 4
-  },
-  numberField: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#0F172A'
-  },
-  submitButton: {
-    backgroundColor: '#DC2626',
-    padding: 16,
-    borderRadius: 12,
+  locationStatus: {
+    padding: SPACING.md,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
-    marginBottom: 12
+    marginVertical: SPACING.md,
   },
-  submitButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16
+  locationText: {
+    color: COLORS.white,
+    fontSize: FONTS.md,
+    fontWeight: '600',
   },
-  disclaimer: {
-    color: '#94A3B8',
-    fontSize: 11,
-    textAlign: 'center',
-    marginBottom: 32
-  }
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: SPACING.md,
+    paddingBottom: SPACING.xxl,
+  },
+  backBtn: {
+    flex: 0.45,
+  },
+  nextBtn: {
+    flex: 0.45,
+  },
+  nextButton: {
+    marginTop: SPACING.md,
+  },
 });
