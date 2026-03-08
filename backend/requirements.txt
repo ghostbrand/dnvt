@@ -61,6 +61,7 @@ motor==3.3.1
 multidict==6.7.1
 mypy==1.19.1
 mypy_extensions==1.1.0
+nodeenv==1.10.0
 numpy==2.4.2
 oauthlib==3.3.1
 openai==1.99.9
@@ -71,6 +72,7 @@ pathspec==1.0.4
 pillow==12.1.1
 platformdirs==4.9.2
 pluggy==1.6.0
+prisma==0.15.0
 propcache==0.4.1
 proto-plus==1.27.1
 protobuf==5.29.6
@@ -110,6 +112,7 @@ stripe==14.4.0
 tenacity==9.1.4
 tiktoken==0.12.0
 tokenizers==0.22.2
+tomlkit==0.14.0
 tqdm==4.67.3
 typer==0.24.1
 typing-inspection==0.4.2
