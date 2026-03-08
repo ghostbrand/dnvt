@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 
 // Screens
+import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import MapScreen from './src/screens/MapScreen';
@@ -14,67 +15,55 @@ import ProfileScreen from './src/screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 
-function AppNavigator() {
+function AuthStack() {
+  return (
+    <Stack.Navigator 
+      screenOptions={{ 
+        headerShown: false,
+        animation: 'slide_from_right'
+      }}
+    >
+      <Stack.Screen name="Login" component={LoginScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function AppStack() {
+  return (
+    <Stack.Navigator 
+      screenOptions={{ 
+        headerShown: false,
+        animation: 'slide_from_right'
+      }}
+    >
+      <Stack.Screen name="Home" component={HomeScreen} />
+      <Stack.Screen name="Map" component={MapScreen} />
+      <Stack.Screen name="ReportAccident" component={ReportAccidentScreen} />
+      <Stack.Screen name="Alerts" component={AlertsScreen} />
+      <Stack.Screen name="Profile" component={ProfileScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function RootNavigator() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return null; // Or splash screen
+    return <SplashScreen />;
   }
 
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: '#0F172A' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: 'bold' },
-      }}
-    >
-      {!user ? (
-        <Stack.Screen 
-          name="Login" 
-          component={LoginScreen} 
-          options={{ headerShown: false }}
-        />
-      ) : (
-        <>
-          <Stack.Screen 
-            name="Home" 
-            component={HomeScreen} 
-            options={{ title: 'DNVT' }}
-          />
-          <Stack.Screen 
-            name="Map" 
-            component={MapScreen} 
-            options={{ title: 'Mapa de Acidentes' }}
-          />
-          <Stack.Screen 
-            name="ReportAccident" 
-            component={ReportAccidentScreen} 
-            options={{ title: 'Reportar Acidente' }}
-          />
-          <Stack.Screen 
-            name="Alerts" 
-            component={AlertsScreen} 
-            options={{ title: 'Alertas' }}
-          />
-          <Stack.Screen 
-            name="Profile" 
-            component={ProfileScreen} 
-            options={{ title: 'Perfil' }}
-          />
-        </>
-      )}
-    </Stack.Navigator>
+    <NavigationContainer>
+      {user ? <AppStack /> : <AuthStack />}
+    </NavigationContainer>
   );
 }
 
 export default function App() {
   return (
     <AuthProvider>
-      <NavigationContainer>
-        <StatusBar style="light" />
-        <AppNavigator />
-      </NavigationContainer>
+      <StatusBar style="light" />
+      <RootNavigator />
     </AuthProvider>
   );
 }
