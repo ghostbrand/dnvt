@@ -383,22 +383,26 @@ export default function AcidenteDetalhesPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-sm text-slate-500">Criado em</p>
-                    <p className="font-medium">{new Date(acidente.created_at).toLocaleString('pt-AO')}</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="p-3 bg-slate-50 rounded-xl">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Criado em</p>
+                    <p className="text-sm font-semibold text-slate-700">{new Date(acidente.created_at).toLocaleString('pt-AO')}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-slate-500">Atualizado em</p>
-                    <p className="font-medium">{new Date(acidente.updated_at).toLocaleString('pt-AO')}</p>
+                  <div className="p-3 bg-slate-50 rounded-xl">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Última edição</p>
+                    <p className="text-sm font-semibold text-slate-700">{new Date(acidente.updated_at).toLocaleString('pt-AO')}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-slate-500">Registrado por</p>
-                    <p className="font-mono text-sm">{acidente.created_by || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-500">Origem</p>
+                  <div className="p-3 bg-slate-50 rounded-xl">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Origem do registo</p>
                     <Badge variant="outline">{acidente.origem_registro?.replace(/_/g, ' ')}</Badge>
+                  </div>
+                  <div className="p-3 bg-blue-50 rounded-xl">
+                    <p className="text-[10px] text-blue-500 font-bold uppercase tracking-wider mb-1">Registado por</p>
+                    <p className="text-sm font-semibold text-blue-700">{acidente.created_by || 'N/A'}</p>
+                  </div>
+                  <div className="p-3 bg-amber-50 rounded-xl">
+                    <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider mb-1">Última edição por</p>
+                    <p className="text-sm font-semibold text-amber-700">{acidente.updated_by || 'N/A'}</p>
                   </div>
                 </div>
               </CardContent>

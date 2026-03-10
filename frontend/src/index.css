@@ -2,18 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Public+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
 
 body {
   margin: 0;
-  font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Barlow Condensed', sans-serif;
-  letter-spacing: -0.02em;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.025em;
 }
 
 code, .font-mono {
@@ -22,62 +23,45 @@ code, .font-mono {
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    /* DNVT Brand: Navy Blue #1B2A4A base */
+    --background: 220 20% 97%;
+    --foreground: 220 40% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 220 40% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 222 47% 11%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 217 91% 60%;
+    --popover-foreground: 220 40% 13%;
+    --primary: 220 50% 20%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 20% 94%;
+    --secondary-foreground: 220 40% 13%;
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 10% 46%;
+    --accent: 220 70% 50%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
+    --warning: 45 93% 47%;
     --warning-foreground: 0 0% 100%;
-    --success: 160 84% 39%;
+    --success: 152 69% 40%;
     --success-foreground: 0 0% 100%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 217 91% 60%;
+    --border: 220 15% 90%;
+    --input: 220 15% 90%;
+    --ring: 220 70% 50%;
     --chart-1: 0 72% 51%;
-    --chart-2: 38 92% 50%;
-    --chart-3: 160 84% 39%;
-    --chart-4: 217 91% 60%;
-    --chart-5: 262 83% 58%;
-    --radius: 0.5rem;
-  }
+    --chart-2: 45 93% 47%;
+    --chart-3: 152 69% 40%;
+    --chart-4: 220 70% 50%;
+    --chart-5: 280 67% 55%;
+    --radius: 0.75rem;
 
-  .dark {
-    --background: 224 71% 4%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 91% 60%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 217 91% 60%;
-    --chart-1: 0 72% 51%;
-    --chart-2: 38 92% 50%;
-    --chart-3: 160 84% 39%;
-    --chart-4: 217 91% 60%;
-    --chart-5: 262 83% 58%;
+    /* DNVT Brand tokens */
+    --dnvt-navy: 220 50% 20%;
+    --dnvt-navy-light: 220 45% 30%;
+    --dnvt-blue: 220 70% 50%;
+    --dnvt-blue-light: 220 75% 60%;
+    --dnvt-red: 0 72% 45%;
+    --dnvt-gold: 45 93% 47%;
+    --dnvt-green: 152 69% 40%;
   }
 }
 
@@ -92,21 +76,21 @@ code, .font-mono {
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(var(--secondary));
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground));
-  border-radius: 4px;
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 99px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--foreground));
+  background: hsl(var(--muted-foreground) / 0.5);
 }
 
 /* Map styles */
@@ -115,48 +99,146 @@ code, .font-mono {
   height: 100%;
 }
 
-/* Pulse animation for emergency */
+/* ============ ANIMATIONS ============ */
 @keyframes pulse-slow {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--dnvt-blue) / 0.4); }
+  50% { box-shadow: 0 0 0 8px hsl(var(--dnvt-blue) / 0); }
 }
 
 .animate-pulse-slow {
   animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Status badges */
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out forwards;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.3s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out forwards;
+}
+
+.animate-count-up {
+  animation: count-up 0.5s ease-out forwards;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* Staggered animation delays */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.3s; }
+
+/* ============ INTERACTIVE CARDS ============ */
+.card-interactive {
+  @apply transition-all duration-300 ease-out;
+}
+
+.card-interactive:hover {
+  @apply -translate-y-1 shadow-lg;
+}
+
+.card-interactive:active {
+  @apply translate-y-0 shadow-md;
+  transition-duration: 0.1s;
+}
+
+/* Gradient card backgrounds */
+.card-gradient-navy {
+  background: linear-gradient(135deg, hsl(220 50% 20%) 0%, hsl(220 45% 30%) 100%);
+}
+
+.card-gradient-blue {
+  background: linear-gradient(135deg, hsl(220 70% 50%) 0%, hsl(220 75% 60%) 100%);
+}
+
+.card-gradient-red {
+  background: linear-gradient(135deg, hsl(0 72% 45%) 0%, hsl(15 80% 55%) 100%);
+}
+
+.card-gradient-gold {
+  background: linear-gradient(135deg, hsl(45 93% 47%) 0%, hsl(38 90% 55%) 100%);
+}
+
+.card-gradient-green {
+  background: linear-gradient(135deg, hsl(152 69% 40%) 0%, hsl(160 60% 50%) 100%);
+}
+
+/* ============ STATUS BADGES ============ */
 .status-badge {
-  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide uppercase;
 }
 
 .status-reportado {
-  @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400;
+  @apply bg-amber-100 text-amber-700;
 }
 
 .status-validado {
-  @apply bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400;
+  @apply bg-blue-100 text-blue-700;
 }
 
 .status-em-atendimento {
-  @apply bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400;
+  @apply bg-orange-100 text-orange-700;
 }
 
 .status-encerrado {
-  @apply bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400;
+  @apply bg-emerald-100 text-emerald-700;
 }
 
-/* Severity indicators */
+/* ============ SEVERITY INDICATORS ============ */
 .severity-leve {
-  @apply border-l-4 border-l-green-500;
+  @apply border-l-4 border-l-emerald-500;
 }
 
 .severity-moderado {
-  @apply border-l-4 border-l-yellow-500;
+  @apply border-l-4 border-l-amber-500;
 }
 
 .severity-grave {
@@ -167,20 +249,53 @@ code, .font-mono {
   @apply border-l-4 border-l-red-500;
 }
 
-/* Glass panel for map overlays */
+/* ============ GLASS EFFECTS ============ */
 .glass-panel {
-  @apply bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/50 dark:border-slate-700/50 shadow-lg rounded-xl;
+  @apply bg-white/80 backdrop-blur-xl border border-white/20 shadow-xl rounded-2xl;
 }
 
-/* Data table compact */
+.glass-dark {
+  background: rgba(27, 42, 74, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ============ SIDEBAR ============ */
+.sidebar-nav-item {
+  @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200;
+}
+
+.sidebar-nav-item:hover {
+  @apply scale-[1.02];
+}
+
+.sidebar-nav-active {
+  background: linear-gradient(135deg, hsl(220 70% 50%) 0%, hsl(220 75% 60%) 100%);
+  @apply text-white shadow-md;
+  box-shadow: 0 4px 15px hsl(220 70% 50% / 0.3);
+}
+
+.sidebar-nav-inactive {
+  @apply text-slate-400 hover:text-white hover:bg-white/10;
+}
+
+/* ============ TABLE COMPACT ============ */
 .table-compact td {
   @apply py-2 px-3;
 }
 
-/* Emergency button */
+/* ============ EMERGENCY BUTTON ============ */
 .btn-emergency {
-  @apply bg-red-600 text-white hover:bg-red-700 shadow-md;
+  @apply bg-red-600 text-white hover:bg-red-700 shadow-lg;
   animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ============ MISC ============ */
+.text-gradient-navy {
+  background: linear-gradient(135deg, hsl(220 50% 20%) 0%, hsl(220 70% 50%) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 @layer base {

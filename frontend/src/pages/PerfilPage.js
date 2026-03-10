@@ -77,7 +77,7 @@ export default function PerfilPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const response = await fetch(`${API}/usuarios/me`, {
+      const response = await fetch(`${API}/utilizadores/me`, {
         method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
@@ -136,7 +136,7 @@ export default function PerfilPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-96">
-          <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+          <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
         </div>
       </Layout>
     );
@@ -146,14 +146,15 @@ export default function PerfilPage() {
     <Layout>
       <div className="max-w-3xl mx-auto space-y-6" data-testid="perfil-page">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between animate-slide-up">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Meu Perfil</h1>
-            <p className="text-slate-500 text-sm">Gerencie suas informações pessoais</p>
+            <h1 className="text-3xl font-extrabold text-[#1B2A4A] tracking-tight">Meu Perfil</h1>
+            <p className="text-slate-400 text-sm mt-0.5">Gerencie suas informações pessoais</p>
           </div>
           <Button 
             variant={editMode ? "destructive" : "outline"}
             onClick={() => setEditMode(!editMode)}
+            className={`rounded-xl ${!editMode ? 'border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200' : ''} transition-all`}
           >
             {editMode ? 'Cancelar' : (
               <>
@@ -165,73 +166,76 @@ export default function PerfilPage() {
         </div>
 
         {/* Profile Header Card */}
-        <Card>
-          <CardContent className="pt-6">
+        <Card className="border-0 shadow-md shadow-slate-200/50 rounded-2xl overflow-hidden animate-slide-up stagger-1" style={{opacity: 0}}>
+          <div className="h-1.5 bg-gradient-to-r from-[#1B2A4A] via-blue-600 to-indigo-500" />
+          <CardContent className="pt-6 px-6 pb-6">
             <div className="flex items-center gap-6">
-              <Avatar className="w-20 h-20 bg-slate-900">
-                <AvatarFallback className="bg-slate-900 text-white text-xl">
+              <Avatar className="w-20 h-20 rounded-2xl shadow-lg">
+                <AvatarFallback className="rounded-2xl text-white text-xl font-bold" style={{ background: 'linear-gradient(135deg, #1B2A4A 0%, #2B4075 100%)' }}>
                   {getInitials(user.nome)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h2 className="text-xl font-bold">{user.nome}</h2>
+                <div className="flex items-center gap-3 mb-1.5">
+                  <h2 className="text-xl font-bold text-[#1B2A4A]">{user.nome}</h2>
                   {getTipoBadge(user.tipo)}
                 </div>
-                <p className="text-slate-500">{user.email}</p>
-                <p className="text-xs text-slate-400 mt-1 font-mono">{user.user_id}</p>
+                <p className="text-slate-400 text-sm">{user.email}</p>
+                <p className="text-[11px] text-slate-300 mt-1 font-mono">{user.user_id}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Personal Info */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="w-5 h-5" />
+        <Card className="border-0 shadow-md shadow-slate-200/50 rounded-2xl overflow-hidden animate-slide-up stagger-2" style={{opacity: 0}}>
+          <CardHeader className="pt-5 px-6 pb-3">
+            <CardTitle className="flex items-center gap-3 text-[#1B2A4A]">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
+                <User className="w-4.5 h-4.5 text-blue-600" />
+              </div>
               Informações Pessoais
             </CardTitle>
-            <CardDescription>Seus dados pessoais e de contacto</CardDescription>
+            <CardDescription className="text-slate-400 text-xs ml-12">Seus dados pessoais e de contacto</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-6 pb-6">
             {editMode ? (
-              /* Edit Form */
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="nome">Nome Completo</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="nome" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Nome Completo</Label>
                     <Input
                       id="nome"
                       value={formData.nome}
                       onChange={(e) => setFormData({...formData, nome: e.target.value})}
                       placeholder="Seu nome completo"
+                      className="rounded-xl border-slate-200"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="telefone">Telefone</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="telefone" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Telefone</Label>
                     <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                       <Input
                         id="telefone"
                         value={formData.telefone}
                         onChange={(e) => setFormData({...formData, telefone: e.target.value})}
                         placeholder="+244 923 456 789"
-                        className="pl-10"
+                        className="pl-10 rounded-xl border-slate-200"
                       />
                     </div>
                   </div>
-                  <div>
-                    <Label htmlFor="bi">Bilhete de Identidade</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bi" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Bilhete de Identidade</Label>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
-                        <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                         <Input
                           id="bi"
                           value={formData.bilhete_identidade}
                           onChange={(e) => setFormData({...formData, bilhete_identidade: e.target.value.toUpperCase()})}
                           placeholder="123456789LA123"
-                          className="pl-10 font-mono"
+                          className="pl-10 font-mono rounded-xl border-slate-200"
                           maxLength={14}
                         />
                       </div>
@@ -239,29 +243,35 @@ export default function PerfilPage() {
                         type="button" 
                         variant="outline" 
                         onClick={() => validateBI(formData.bilhete_identidade)}
+                        className="rounded-xl border-slate-200"
                       >
                         Validar
                       </Button>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">Formato: 123456789LA123</p>
+                    <p className="text-[11px] text-slate-400">Formato: 123456789LA123</p>
                   </div>
-                  <div>
-                    <Label htmlFor="endereco">Endereço</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="endereco" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Endereço</Label>
                     <div className="relative">
-                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                       <Input
                         id="endereco"
                         value={formData.endereco}
                         onChange={(e) => setFormData({...formData, endereco: e.target.value})}
                         placeholder="Seu endereço"
-                        className="pl-10"
+                        className="pl-10 rounded-xl border-slate-200"
                       />
                     </div>
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 pt-4">
-                  <Button variant="outline" onClick={() => setEditMode(false)}>Cancelar</Button>
-                  <Button onClick={handleSave} disabled={saving}>
+                  <Button variant="outline" onClick={() => setEditMode(false)} className="rounded-xl border-slate-200">Cancelar</Button>
+                  <Button 
+                    onClick={handleSave} 
+                    disabled={saving}
+                    className="rounded-xl font-semibold"
+                    style={{ background: 'linear-gradient(135deg, #1B2A4A 0%, #2B4075 100%)' }}
+                  >
                     {saving ? (
                       <Loader2 className="w-4 h-4 animate-spin mr-2" />
                     ) : (
@@ -272,119 +282,76 @@ export default function PerfilPage() {
                 </div>
               </>
             ) : (
-              /* View Mode */
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="flex items-start gap-3">
-                  <Mail className="w-5 h-5 text-slate-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-slate-500">Email</p>
-                    <p className="font-medium">{user.email}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {[
+                  { icon: Mail, label: 'Email', value: user.email },
+                  { icon: Phone, label: 'Telefone', value: user.telefone || 'Não informado' },
+                  { icon: CreditCard, label: 'Bilhete de Identidade', value: user.bilhete_identidade || 'Não informado', mono: true },
+                  { icon: MapPin, label: 'Endereço', value: user.endereco || 'Não informado' },
+                  { icon: Shield, label: 'Tipo de Conta', value: user.tipo },
+                  { icon: Calendar, label: 'Membro desde', value: new Date(user.created_at).toLocaleDateString('pt-AO') },
+                ].map(({ icon: Icon, label, value, mono }) => (
+                  <div key={label} className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors">
+                    <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-4 h-4 text-slate-400" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">{label}</p>
+                      <p className={`text-sm font-medium text-slate-700 mt-0.5 ${mono ? 'font-mono' : ''}`}>{value}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Phone className="w-5 h-5 text-slate-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-slate-500">Telefone</p>
-                    <p className="font-medium">{user.telefone || 'Não informado'}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <CreditCard className="w-5 h-5 text-slate-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-slate-500">Bilhete de Identidade</p>
-                    <p className="font-medium font-mono">{user.bilhete_identidade || 'Não informado'}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-slate-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-slate-500">Endereço</p>
-                    <p className="font-medium">{user.endereco || 'Não informado'}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Shield className="w-5 h-5 text-slate-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-slate-500">Tipo de Conta</p>
-                    <p className="font-medium">{user.tipo}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Calendar className="w-5 h-5 text-slate-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-slate-500">Membro desde</p>
-                    <p className="font-medium">{new Date(user.created_at).toLocaleDateString('pt-AO')}</p>
-                  </div>
-                </div>
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
 
         {/* Notification Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="w-5 h-5" />
+        <Card className="border-0 shadow-md shadow-slate-200/50 rounded-2xl overflow-hidden animate-slide-up stagger-3" style={{opacity: 0}}>
+          <CardHeader className="pt-5 px-6 pb-3">
+            <CardTitle className="flex items-center gap-3 text-[#1B2A4A]">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center">
+                <Bell className="w-4.5 h-4.5 text-amber-600" />
+              </div>
               Configurações de Alertas
             </CardTitle>
-            <CardDescription>Defina como deseja receber notificações de acidentes</CardDescription>
+            <CardDescription className="text-slate-400 text-xs ml-12">Defina como deseja receber notificações de acidentes</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-6 pb-6">
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                <div>
-                  <p className="font-medium">Alertas de Novos Acidentes</p>
-                  <p className="text-sm text-slate-500">Receber notificação quando houver novos acidentes</p>
+              {[
+                { key: 'alertas_novos_acidentes', title: 'Alertas de Novos Acidentes', desc: 'Receber notificação quando houver novos acidentes' },
+                { key: 'alertas_sonoros', title: 'Alertas Sonoros', desc: 'Reproduzir som ao receber alerta crítico' },
+                { key: 'alertas_sms', title: 'Alertas SMS', desc: 'Receber SMS para acidentes graves na sua zona' },
+              ].map(({ key, title, desc }) => (
+                <div key={key} className="flex items-center justify-between p-4 bg-slate-50/80 rounded-xl hover:bg-slate-100/80 transition-colors">
+                  <div>
+                    <p className="font-semibold text-sm text-slate-700">{title}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{desc}</p>
+                  </div>
+                  <input 
+                    type="checkbox" 
+                    checked={formData[key]}
+                    onChange={(e) => setFormData({...formData, [key]: e.target.checked})}
+                    disabled={!editMode}
+                    className="w-5 h-5 rounded-md accent-blue-600" 
+                  />
                 </div>
-                <input 
-                  type="checkbox" 
-                  checked={formData.alertas_novos_acidentes}
-                  onChange={(e) => setFormData({...formData, alertas_novos_acidentes: e.target.checked})}
-                  disabled={!editMode}
-                  className="w-5 h-5 rounded" 
-                />
-              </div>
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                <div>
-                  <p className="font-medium">Alertas Sonoros</p>
-                  <p className="text-sm text-slate-500">Reproduzir som ao receber alerta crítico</p>
-                </div>
-                <input 
-                  type="checkbox" 
-                  checked={formData.alertas_sonoros}
-                  onChange={(e) => setFormData({...formData, alertas_sonoros: e.target.checked})}
-                  disabled={!editMode}
-                  className="w-5 h-5 rounded" 
-                />
-              </div>
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                <div>
-                  <p className="font-medium">Alertas SMS</p>
-                  <p className="text-sm text-slate-500">Receber SMS para acidentes graves na sua zona</p>
-                </div>
-                <input 
-                  type="checkbox" 
-                  checked={formData.alertas_sms}
-                  onChange={(e) => setFormData({...formData, alertas_sms: e.target.checked})}
-                  disabled={!editMode}
-                  className="w-5 h-5 rounded" 
-                />
-              </div>
+              ))}
             </div>
 
             <Separator className="my-4" />
 
             <div>
-              <h4 className="font-medium mb-3">Zonas Monitoradas</h4>
-              <p className="text-sm text-slate-500 mb-3">Selecione as zonas para receber alertas {!editMode && '(ative edição para alterar)'}</p>
+              <h4 className="font-bold text-sm text-[#1B2A4A] mb-2">Zonas Monitoradas</h4>
+              <p className="text-xs text-slate-400 mb-3">Selecione as zonas para receber alertas {!editMode && '(ative edição para alterar)'}</p>
               {zonasMonitoradas.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2">
                   {zonasMonitoradas.map(zona => (
-                    <label key={zona.zona_id} className={`flex items-center gap-2 p-2 bg-slate-50 rounded ${editMode ? 'cursor-pointer hover:bg-slate-100' : 'opacity-75'}`}>
+                    <label key={zona.zona_id} className={`flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100 ${editMode ? 'cursor-pointer hover:bg-blue-50 hover:border-blue-200' : 'opacity-75'} transition-all`}>
                       <input 
                         type="checkbox" 
-                        className="rounded" 
+                        className="rounded-md accent-blue-600" 
                         disabled={!editMode}
                         checked={formData.zonas_notificacao.includes(zona.zona_id)}
                         onChange={(e) => {
@@ -395,28 +362,28 @@ export default function PerfilPage() {
                           }
                         }}
                       />
-                      <span className="text-sm">{zona.nome || `Zona ${zona.zona_id.slice(-6)}`}</span>
+                      <span className="text-sm font-medium text-slate-600">{zona.nome || `Zona ${zona.zona_id.slice(-6)}`}</span>
                     </label>
                   ))}
                 </div>
               ) : (
-                <p className="text-slate-400 text-sm">Nenhuma zona crítica cadastrada</p>
+                <p className="text-slate-300 text-sm">Nenhuma zona crítica cadastrada</p>
               )}
             </div>
           </CardContent>
         </Card>
 
         {/* Account Info */}
-        <Card className="bg-slate-50">
-          <CardContent className="pt-6">
+        <Card className="border-0 shadow-sm shadow-slate-200/50 rounded-2xl bg-slate-50/50 animate-slide-up stagger-4" style={{opacity: 0}}>
+          <CardContent className="pt-5 pb-5 px-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500">ID da Conta</p>
-                <p className="font-mono text-sm">{user.user_id}</p>
+                <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">ID da Conta</p>
+                <p className="font-mono text-xs text-slate-500 mt-0.5">{user.user_id}</p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-slate-500">Última atualização</p>
-                <p className="text-sm">{new Date(user.updated_at || user.created_at).toLocaleString('pt-AO')}</p>
+                <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Última atualização</p>
+                <p className="text-xs text-slate-500 mt-0.5">{new Date(user.updated_at || user.created_at).toLocaleString('pt-AO')}</p>
               </div>
             </div>
           </CardContent>

@@ -238,6 +238,75 @@ export const smsApi = {
   }
 };
 
+// Utilizadores
+export const utilizadoresApi = {
+  list: async () => {
+    const res = await fetch(`${API}/utilizadores`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('Erro ao listar utilizadores');
+    return res.json();
+  },
+  
+  create: async (data) => {
+    const res = await fetch(`${API}/utilizadores`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Erro ao criar utilizador');
+    }
+    return res.json();
+  },
+  
+  update: async (id, data) => {
+    const res = await fetch(`${API}/utilizadores/${id}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Erro ao atualizar utilizador');
+    return res.json();
+  },
+  
+  aprovar: async (id) => {
+    const res = await fetch(`${API}/utilizadores/${id}/aprovar`, {
+      method: 'PATCH',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Erro ao aprovar utilizador');
+    return res.json();
+  },
+  
+  resetSenha: async (id) => {
+    const res = await fetch(`${API}/utilizadores/${id}/reset-senha`, {
+      method: 'PATCH',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Erro ao redefinir senha');
+    return res.json();
+  },
+  
+  suspender: async (id) => {
+    const res = await fetch(`${API}/utilizadores/${id}/suspender`, {
+      method: 'PATCH',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Erro ao suspender utilizador');
+    return res.json();
+  }
+};
+
+// Histórico / Audit Log
+export const historicoApi = {
+  list: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    const res = await fetch(`${API}/historico?${query}`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('Erro ao listar histórico');
+    return res.json();
+  }
+};
+
 // Rotas
 export const rotasApi = {
   verificarAcidentes: async (latOrigem, lngOrigem, latDestino, lngDestino) => {

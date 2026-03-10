@@ -46,15 +46,24 @@ export function AuthProvider({ children }) {
   }, [checkAuth]);
 
   const login = async (email, senha) => {
-    const response = await fetch(`${API}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, senha })
-    });
+    let response;
+    try {
+      response = await fetch(`${API}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, senha })
+      });
+    } catch (networkError) {
+      throw new Error('Erro de conexão com o servidor. Verifique sua internet.');
+    }
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Erro ao fazer login');
+      let errorMsg = 'Email ou senha incorretos';
+      try {
+        const error = await response.json();
+        errorMsg = error.detail || error.error || errorMsg;
+      } catch (e) {}
+      throw new Error(errorMsg);
     }
 
     const data = await response.json();

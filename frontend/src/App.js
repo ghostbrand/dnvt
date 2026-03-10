@@ -19,6 +19,9 @@ import AssistenciasPage from './pages/AssistenciasPage';
 import EstatisticasPage from './pages/EstatisticasPage';
 import ConfiguracoesPage from './pages/ConfiguracoesPage';
 import PerfilPage from './pages/PerfilPage';
+import UtilizadoresPage from './pages/UtilizadoresPage';
+import HistoricoPage from './pages/HistoricoPage';
+import CidadaosPage from './pages/CidadaosPage';
 
 // Notifications wrapper component
 function NotificationsProvider({ children }) {
@@ -104,6 +107,18 @@ function AppRouter() {
       
       <Route path="/perfil" element={
         <ProtectedRoute><PerfilPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/utilizadores" element={
+        <ProtectedRoute><UtilizadoresPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/historico" element={
+        <ProtectedRoute><HistoricoPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/cidadaos" element={
+        <ProtectedRoute><CidadaosPage /></ProtectedRoute>
       } />
       
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
