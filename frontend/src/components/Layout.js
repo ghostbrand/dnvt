@@ -70,8 +70,17 @@ export default function Layout({ children }) {
   const [collapsed, setCollapsed] = useState(true);
   const [hovered, setHovered] = useState(false);
   const [activeAlertsCount, setActiveAlertsCount] = useState(0);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 1024);
 
-  const expanded = !collapsed || hovered;
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // On mobile: always expanded (full-width overlay, slide in/out)
+  // On desktop: respects collapsed / hovered states
+  const expanded = isMobile ? true : (!collapsed || hovered);
 
   useEffect(() => {
     const fetchAlerts = async () => {
@@ -104,9 +113,10 @@ export default function Layout({ children }) {
   const displayRole = user?.tipo || user?.role || '';
   const isAdmin = user?.tipo?.toUpperCase() === 'ADMIN' || user?.role?.toLowerCase() === 'admin';
 
-  // Main content always uses collapsed width; sidebar overlays on hover
+  // On mobile: sidebar is off-screen, no content margin needed (handled by lg: prefix)
+  // On desktop: main content uses collapsed width; sidebar overlays on hover
   const contentMargin = collapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_EXPANDED_W;
-  const sidebarWidth = expanded ? SIDEBAR_EXPANDED_W : SIDEBAR_COLLAPSED_W;
+  const sidebarWidth = isMobile ? SIDEBAR_EXPANDED_W : (expanded ? SIDEBAR_EXPANDED_W : SIDEBAR_COLLAPSED_W);
 
   const NavItem = useCallback(({ item, badge }) => {
     const isActive = location.pathname === item.href ||
@@ -175,10 +185,10 @@ export default function Layout({ children }) {
             collapsed && hovered && "shadow-2xl shadow-black/30"
           )}
           style={{
-            width: `${mobileOpen ? SIDEBAR_EXPANDED_W : sidebarWidth}px`,
+            width: `${sidebarWidth}px`,
             background: 'linear-gradient(180deg, #0a1628 0%, #122042 50%, #162a52 100%)'
           }}
-          onMouseEnter={() => collapsed && window.innerWidth >= 1024 && setHovered(true)}
+          onMouseEnter={() => !isMobile && collapsed && setHovered(true)}
           onMouseLeave={() => setHovered(false)}
         >
           <div className="flex flex-col h-full">
