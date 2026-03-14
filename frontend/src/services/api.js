@@ -56,6 +56,12 @@ export const acidentesApi = {
     });
     if (!res.ok) throw new Error('Erro ao remover acidente');
     return res.json();
+  },
+
+  getAgentesACaminho: async (id) => {
+    const res = await fetch(`${API}/acidentes/${id}/agentes-a-caminho`, { headers: getHeaders() });
+    if (!res.ok) return [];
+    return res.json();
   }
 };
 
@@ -144,7 +150,10 @@ export const zonasApi = {
       headers: getHeaders(),
       body: JSON.stringify(data)
     });
-    if (!res.ok) throw new Error('Erro ao criar zona');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Erro ao criar zona');
+    }
     return res.json();
   },
   
@@ -160,6 +169,41 @@ export const zonasApi = {
   calcular: async () => {
     const res = await fetch(`${API}/zonas-criticas/calcular`, { headers: getHeaders() });
     if (!res.ok) throw new Error('Erro ao calcular zonas');
+    return res.json();
+  },
+  
+  update: async (id, data) => {
+    const res = await fetch(`${API}/zonas-criticas/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Erro ao atualizar zona');
+    }
+    return res.json();
+  },
+
+  delete: async (id) => {
+    const res = await fetch(`${API}/zonas-criticas/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Erro ao eliminar zona');
+    }
+    return res.json();
+  },
+
+  updateMonitores: async (id, monitores) => {
+    const res = await fetch(`${API}/zonas-criticas/${id}/monitores`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ monitores })
+    });
+    if (!res.ok) throw new Error('Erro ao atualizar monitores');
     return res.json();
   }
 };
@@ -293,6 +337,49 @@ export const utilizadoresApi = {
       headers: getHeaders()
     });
     if (!res.ok) throw new Error('Erro ao suspender utilizador');
+    return res.json();
+  }
+};
+
+// Notificações
+export const notificacoesApi = {
+  list: async () => {
+    const res = await fetch(`${API}/notificacoes`, { headers: getHeaders() });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  historico: async () => {
+    const res = await fetch(`${API}/notificacoes/historico`, { headers: getHeaders() });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  marcarLida: async (id) => {
+    const res = await fetch(`${API}/notificacoes/${id}/lida`, {
+      method: 'PATCH',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Erro ao marcar notificação');
+    return res.json();
+  },
+
+  marcarTodasLidas: async () => {
+    const res = await fetch(`${API}/notificacoes/marcar-todas-lidas`, {
+      method: 'PATCH',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Erro');
+    return res.json();
+  },
+
+  enviar: async (data) => {
+    const res = await fetch(`${API}/notificacoes/enviar`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Erro ao enviar notificação');
     return res.json();
   }
 };

@@ -8,7 +8,9 @@ const assistenciaSchema = new mongoose.Schema({
   latitude_atual: { type: Number },
   longitude_atual: { type: Number },
   hora_inicio: { type: Date, default: null },
-  hora_fim: { type: Date, default: null }
+  hora_fim: { type: Date, default: null },
+  agente_id: { type: String, default: '' },
+  agente_nome: { type: String, default: '' }
 }, { collection: 'assistencias', timestamps: false, strict: false });
 
 module.exports = mongoose.model('Assistencia', assistenciaSchema);

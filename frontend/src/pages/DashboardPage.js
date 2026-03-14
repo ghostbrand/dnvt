@@ -319,7 +319,7 @@ export default function DashboardPage() {
                   <Link 
                     key={acidente.acidente_id || acidente._id || idx} 
                     to={`/acidentes/${acidente.acidente_id || acidente._id}`}
-                    className="group flex items-center gap-4 p-4 rounded-xl bg-slate-50/80 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-200 transition-all duration-200"
+                    className="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-slate-50/80 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-200 transition-all duration-200"
                   >
                     {/* Severity indicator */}
                     <div className={`w-1 h-12 rounded-full flex-shrink-0 ${
@@ -335,7 +335,7 @@ export default function DashboardPage() {
                         {getStatusBadge(acidente.status)}
                       </div>
                       <p className="text-xs text-slate-500 line-clamp-1">{acidente.descricao || acidente.endereco || 'Sem descrição'}</p>
-                      <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-400">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1.5 text-[11px] text-slate-400">
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3 h-3" />
                           {acidente.endereco || `${acidente.latitude?.toFixed(4)}, ${acidente.longitude?.toFixed(4)}`}
@@ -347,8 +347,8 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      {getGravidadeBadge(acidente.gravidade)}
+                    <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                      <span className="hidden sm:inline-flex">{getGravidadeBadge(acidente.gravidade)}</span>
                       <Eye className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
                     </div>
                   </Link>

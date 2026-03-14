@@ -51,6 +51,8 @@ const userSchema = new mongoose.Schema({
     configuracoes: { type: Boolean, default: false },
     exportar_dados: { type: Boolean, default: false }
   },
+  push_token: { type: String, default: '' },
+  provincia: { type: String, default: '' },
   alertas_novos_acidentes: { type: Boolean, default: true },
   alertas_sonoros: { type: Boolean, default: true },
   alertas_sms: { type: Boolean, default: false },

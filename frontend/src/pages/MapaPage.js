@@ -17,7 +17,10 @@ import {
   RefreshCw,
   Search,
   X,
-  Navigation
+  Navigation,
+  Clock,
+  Route,
+  ArrowRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -29,11 +32,14 @@ export default function MapaPage() {
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
   const heatmapRef = useRef(null);
+  const directionsRendererRef = useRef(null);
   
   const [acidentes, setAcidentes] = useState([]);
   const [assistencias, setAssistencias] = useState([]);
   const [zonas, setZonas] = useState([]);
   const [selectedAccident, setSelectedAccident] = useState(null);
+  const [selectedAssist, setSelectedAssist] = useState(null);
+  const [routeInfo, setRouteInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [apiKey, setApiKey] = useState(null);
@@ -69,10 +75,16 @@ export default function MapaPage() {
     }
 
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=visualization,places`;
+    // Handle Google Maps auth failure (invalid API key)
+    window.gm_authFailure = () => {
+      console.error('Google Maps authentication failed');
+      toast.error('API Key do Google Maps inválida ou sem permissões. Verifique nas Configurações.');
+    };
+
+    window.__onGoogleMapsLoaded = () => setMapLoaded(true);
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=visualization,places,geometry&callback=__onGoogleMapsLoaded`;
     script.async = true;
     script.defer = true;
-    script.onload = () => setMapLoaded(true);
     script.onerror = () => {
       console.error('Failed to load Google Maps');
       toast.error('Erro ao carregar Google Maps. Verifique a API Key nas configurações.');
@@ -92,8 +104,29 @@ export default function MapaPage() {
         { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] }
       ],
       mapTypeControl: true,
+      mapTypeControlOptions: {
+        position: window.google.maps.ControlPosition.RIGHT_TOP,
+        style: window.google.maps.MapTypeControlStyle.HORIZONTAL_BAR
+      },
+      zoomControl: true,
+      zoomControlOptions: {
+        position: window.google.maps.ControlPosition.RIGHT_BOTTOM
+      },
       streetViewControl: false,
-      fullscreenControl: true
+      fullscreenControl: true,
+      fullscreenControlOptions: {
+        position: window.google.maps.ControlPosition.RIGHT_TOP
+      }
+    });
+
+    directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
+      map: mapInstanceRef.current,
+      suppressMarkers: true,
+      polylineOptions: {
+        strokeColor: '#2563EB',
+        strokeWeight: 5,
+        strokeOpacity: 0.8
+      }
     });
   }, [mapLoaded]);
 
@@ -120,6 +153,54 @@ export default function MapaPage() {
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  // Calculate route between two points using Directions API
+  const calculateRoute = useCallback((origin, destination, assist) => {
+    if (!mapInstanceRef.current || !window.google?.maps) return;
+    
+    const directionsService = new window.google.maps.DirectionsService();
+    directionsService.route(
+      {
+        origin,
+        destination,
+        travelMode: window.google.maps.TravelMode.DRIVING,
+        provideRouteAlternatives: true
+      },
+      (result, status) => {
+        if (status === 'OK' && result.routes.length > 0) {
+          directionsRendererRef.current?.setDirections(result);
+          
+          const route = result.routes[0];
+          const leg = route.legs[0];
+          setRouteInfo({
+            distance: leg.distance.text,
+            duration: leg.duration.text,
+            start_address: leg.start_address,
+            end_address: leg.end_address,
+            steps: leg.steps.map(s => ({
+              instruction: s.instructions,
+              distance: s.distance.text,
+              duration: s.duration.text
+            })),
+            alternatives: result.routes.length - 1,
+            assist
+          });
+        } else {
+          toast.error('Não foi possível calcular a rota');
+          setRouteInfo(null);
+        }
+      }
+    );
+  }, []);
+
+  const clearRoute = useCallback(() => {
+    if (directionsRendererRef.current) {
+      directionsRendererRef.current.setMap(null);
+      directionsRendererRef.current.setMap(mapInstanceRef.current);
+    }
+    setRouteInfo(null);
+    setSelectedAssist(null);
+  }, []);
 
   // Update markers when data or filters change
   useEffect(() => {
@@ -164,6 +245,8 @@ export default function MapaPage() {
 
         marker.addListener('click', () => {
           setSelectedAccident(acidente);
+          setSelectedAssist(null);
+          clearRoute();
         });
 
         markersRef.current.push(marker);
@@ -196,23 +279,53 @@ export default function MapaPage() {
           title: `${assist.tipo} - ${assist.status}`
         });
 
+        marker.addListener('click', () => {
+          setSelectedAssist(assist);
+          setSelectedAccident(null);
+          // Find the linked accident and calculate route
+          const acidente = acidentes.find(a => a.acidente_id === assist.acidente_id);
+          if (acidente) {
+            calculateRoute(
+              { lat: assist.latitude_atual, lng: assist.longitude_atual },
+              { lat: acidente.latitude, lng: acidente.longitude },
+              assist
+            );
+          }
+        });
+
         markersRef.current.push(marker);
       });
     }
 
-    // Add zone circles
+    // Add zone overlays — polygon delimitations or circles
     if (showZones) {
       zonas.forEach(zona => {
-        const circle = new window.google.maps.Circle({
-          map: mapInstanceRef.current,
-          center: { lat: zona.latitude_centro, lng: zona.longitude_centro },
-          radius: zona.raio_metros,
-          fillColor: zona.nivel_risco === 'ALTO' ? '#DC2626' : zona.nivel_risco === 'MEDIO' ? '#D97706' : '#16A34A',
-          fillOpacity: 0.2,
-          strokeColor: zona.nivel_risco === 'ALTO' ? '#DC2626' : zona.nivel_risco === 'MEDIO' ? '#D97706' : '#16A34A',
-          strokeWeight: 2
-        });
-        markersRef.current.push(circle);
+        const color = zona.nivel_risco === 'ALTO' ? '#DC2626' : zona.nivel_risco === 'MEDIO' ? '#D97706' : '#16A34A';
+        if (zona.delimitacoes && zona.delimitacoes.length >= 3) {
+          const polygon = new window.google.maps.Polygon({
+            map: mapInstanceRef.current,
+            paths: zona.delimitacoes,
+            fillColor: color, fillOpacity: 0.2,
+            strokeColor: color, strokeWeight: 2
+          });
+          const infoWindow = new window.google.maps.InfoWindow({
+            content: `<div style="padding:4px"><strong>${zona.nome || 'Zona'}</strong><br/><span style="font-size:11px;color:#64748b">Risco: ${zona.nivel_risco} · ${zona.total_acidentes || 0} acidentes</span></div>`
+          });
+          polygon.addListener('click', (e) => {
+            infoWindow.setPosition(e.latLng);
+            infoWindow.open(mapInstanceRef.current);
+          });
+          markersRef.current.push(polygon);
+        } else {
+          const circle = new window.google.maps.Circle({
+            map: mapInstanceRef.current,
+            center: { lat: zona.latitude_centro, lng: zona.longitude_centro },
+            radius: zona.raio_metros || 500,
+            fillColor: color, fillOpacity: 0.2,
+            strokeColor: color, strokeWeight: 2
+          });
+          markersRef.current.push(circle);
+        }
       });
     }
 
@@ -234,7 +347,7 @@ export default function MapaPage() {
       });
     }
 
-  }, [acidentes, assistencias, zonas, showAccidents, showAssistances, showZones, showHeatmap, filterStatus, filterGravidade, mapLoaded]);
+  }, [acidentes, assistencias, zonas, showAccidents, showAssistances, showZones, showHeatmap, filterStatus, filterGravidade, mapLoaded, clearRoute, calculateRoute]);
 
   const centerOnAccident = (acidente) => {
     if (mapInstanceRef.current) {
@@ -272,14 +385,14 @@ export default function MapaPage() {
 
   return (
     <Layout>
-      <div className="h-[calc(100vh-8rem)] flex flex-col lg:flex-row gap-4" data-testid="mapa-page">
+      <div className="h-[calc(100vh-8rem)] flex flex-col lg:flex-row gap-4 min-h-0" data-testid="mapa-page">
         {/* Map */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative min-h-[300px] lg:min-h-0">
           {/* Controls overlay */}
-          <div className="absolute top-4 left-4 z-10 glass-panel p-3 space-y-3">
-            <div className="flex items-center gap-2">
+          <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-10 glass-panel p-2 sm:p-3 space-y-2 sm:space-y-3 max-w-[calc(100%-1rem)] sm:max-w-none">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-40 h-9 text-sm" data-testid="filter-status">
+                <SelectTrigger className="w-full sm:w-40 h-9 text-sm" data-testid="filter-status">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -291,7 +404,7 @@ export default function MapaPage() {
               </Select>
               
               <Select value={filterGravidade} onValueChange={setFilterGravidade}>
-                <SelectTrigger className="w-40 h-9 text-sm" data-testid="filter-gravidade">
+                <SelectTrigger className="w-full sm:w-40 h-9 text-sm" data-testid="filter-gravidade">
                   <SelectValue placeholder="Gravidade" />
                 </SelectTrigger>
                 <SelectContent>
@@ -304,30 +417,32 @@ export default function MapaPage() {
               </Select>
             </div>
             
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
               <Button 
                 size="sm" 
                 variant={showAccidents ? "default" : "outline"}
                 onClick={() => setShowAccidents(!showAccidents)}
-                className="h-8 text-xs"
+                className="h-7 sm:h-8 text-[10px] sm:text-xs px-2 sm:px-3"
               >
                 <AlertTriangle className="w-3 h-3 mr-1" />
-                Acidentes
+                <span className="hidden sm:inline">Acidentes</span>
+                <span className="sm:hidden">Acid.</span>
               </Button>
               <Button 
                 size="sm" 
                 variant={showAssistances ? "default" : "outline"}
                 onClick={() => setShowAssistances(!showAssistances)}
-                className="h-8 text-xs"
+                className="h-7 sm:h-8 text-[10px] sm:text-xs px-2 sm:px-3"
               >
                 <Ambulance className="w-3 h-3 mr-1" />
-                Assistências
+                <span className="hidden sm:inline">Assistências</span>
+                <span className="sm:hidden">Assist.</span>
               </Button>
               <Button 
                 size="sm" 
                 variant={showZones ? "default" : "outline"}
                 onClick={() => setShowZones(!showZones)}
-                className="h-8 text-xs"
+                className="h-7 sm:h-8 text-[10px] sm:text-xs px-2 sm:px-3"
               >
                 <Layers className="w-3 h-3 mr-1" />
                 Zonas
@@ -336,27 +451,65 @@ export default function MapaPage() {
                 size="sm" 
                 variant={showHeatmap ? "default" : "outline"}
                 onClick={() => setShowHeatmap(!showHeatmap)}
-                className="h-8 text-xs"
+                className="h-7 sm:h-8 text-[10px] sm:text-xs px-2 sm:px-3"
               >
                 <Flame className="w-3 h-3 mr-1" />
-                Heatmap
+                Heat
               </Button>
             </div>
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={fetchData}
+              className="h-7 sm:h-8 text-xs w-7 sm:w-auto p-0 sm:px-3"
+              data-testid="refresh-map-btn"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
           </div>
 
-          {/* Refresh button */}
-          <Button 
-            size="sm" 
-            variant="outline"
-            className="absolute top-4 right-4 z-10 glass-panel"
-            onClick={fetchData}
-            data-testid="refresh-map-btn"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
+          {/* Route info overlay */}
+          {routeInfo && (
+            <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-10 glass-panel p-3 sm:p-4 w-56 sm:w-72 max-h-64 sm:max-h-80 overflow-y-auto space-y-2 sm:space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                  <Route className="w-4 h-4 text-blue-600" />
+                  Rota da Assistência
+                </p>
+                <button onClick={clearRoute} className="p-1 rounded-lg hover:bg-slate-100">
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-2.5 bg-blue-50 rounded-xl text-center">
+                  <p className="text-lg font-extrabold text-blue-700">{routeInfo.distance}</p>
+                  <p className="text-[10px] text-blue-500 font-medium">Distância</p>
+                </div>
+                <div className="p-2.5 bg-amber-50 rounded-xl text-center">
+                  <p className="text-lg font-extrabold text-amber-700">{routeInfo.duration}</p>
+                  <p className="text-[10px] text-amber-500 font-medium">Tempo Estimado</p>
+                </div>
+              </div>
+              {routeInfo.alternatives > 0 && (
+                <p className="text-[10px] text-slate-400 text-center">{routeInfo.alternatives} rota(s) alternativa(s) disponível(is)</p>
+              )}
+              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Direções</p>
+                {routeInfo.steps.slice(0, 8).map((step, i) => (
+                  <div key={i} className="flex items-start gap-2 p-1.5 rounded-lg hover:bg-slate-50">
+                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] text-slate-600" dangerouslySetInnerHTML={{ __html: step.instruction }} />
+                      <p className="text-[10px] text-slate-400">{step.distance} · {step.duration}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Legend */}
-          <div className="absolute bottom-4 left-4 z-10 glass-panel p-3">
+          <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 z-10 glass-panel p-2 sm:p-3 hidden sm:block">
             <p className="text-xs font-medium mb-2">Legenda</p>
             <div className="space-y-1 text-xs">
               <div className="flex items-center gap-2">
@@ -382,7 +535,7 @@ export default function MapaPage() {
           <div 
             ref={mapRef} 
             className="w-full h-full rounded-lg"
-            style={{ minHeight: '500px' }}
+            style={{ minHeight: '300px' }}
           />
           
           {!mapLoaded && (
@@ -392,9 +545,71 @@ export default function MapaPage() {
           )}
         </div>
 
-        {/* Sidebar - Accident details or list */}
-        <div className="lg:w-80 flex-shrink-0">
-          {selectedAccident ? (
+        {/* Sidebar - Accident details, assistance route, or list */}
+        <div className="lg:w-80 flex-shrink-0 max-h-[40vh] lg:max-h-none overflow-y-auto">
+          {selectedAssist && routeInfo ? (
+            <Card className="h-full overflow-hidden">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Ambulance className="w-5 h-5 text-blue-600" />
+                    Assistência
+                  </CardTitle>
+                  <Button size="sm" variant="ghost" onClick={clearRoute}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Badge className={`text-xs ${
+                    selectedAssist.tipo === 'AMBULANCIA' ? 'bg-blue-600' :
+                    selectedAssist.tipo === 'POLICIA' ? 'bg-slate-700' : 'bg-red-600'
+                  }`}>{selectedAssist.tipo}</Badge>
+                  <Badge variant="outline" className="text-xs bg-amber-100 text-amber-800 border-amber-200">
+                    {selectedAssist.status?.replace('_', ' ')}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-blue-50 rounded-xl text-center">
+                    <Navigation className="w-5 h-5 text-blue-600 mx-auto mb-1" />
+                    <p className="text-lg font-extrabold text-blue-700">{routeInfo.distance}</p>
+                    <p className="text-[10px] text-blue-500 font-medium">Distância</p>
+                  </div>
+                  <div className="p-3 bg-amber-50 rounded-xl text-center">
+                    <Clock className="w-5 h-5 text-amber-600 mx-auto mb-1" />
+                    <p className="text-lg font-extrabold text-amber-700">{routeInfo.duration}</p>
+                    <p className="text-[10px] text-amber-500 font-medium">Tempo Estimado</p>
+                  </div>
+                </div>
+
+                {routeInfo.alternatives > 0 && (
+                  <div className="p-2 bg-slate-50 rounded-xl text-center">
+                    <p className="text-xs text-slate-500">
+                      <Route className="w-3.5 h-3.5 inline mr-1" />
+                      {routeInfo.alternatives} rota(s) alternativa(s)
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Direções</p>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {routeInfo.steps.map((step, i) => (
+                      <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-slate-50">
+                        <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: step.instruction }} />
+                          <p className="text-[10px] text-slate-400 mt-0.5">{step.distance} · {step.duration}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : selectedAccident ? (
             <Card className="h-full">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">

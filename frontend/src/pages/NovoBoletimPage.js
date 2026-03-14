@@ -113,17 +113,11 @@ export default function NovoBoletimPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.acidente_id) {
-      toast.error('Selecione um acidente');
-      return;
-    }
-    
     setLoading(true);
     try {
-      const boletim = await boletinsApi.create({
-        ...formData,
-        modo_criacao: uploadMode ? 'UPLOAD_MANUAL' : 'GERADO_SISTEMA'
-      });
+      const payload = { ...formData, modo_criacao: uploadMode ? 'UPLOAD_MANUAL' : 'GERADO_SISTEMA' };
+      if (!payload.acidente_id) delete payload.acidente_id;
+      const boletim = await boletinsApi.create(payload);
       
       if (uploadMode && uploadFile) {
         await boletinsApi.upload(boletim.boletim_id, uploadFile);
@@ -176,19 +170,20 @@ export default function NovoBoletimPage() {
           <Card>
             <CardHeader>
               <CardTitle>Acidente Associado</CardTitle>
-              <CardDescription>Selecione o acidente para este boletim</CardDescription>
+              <CardDescription>Selecione o acidente ou deixe em branco para um boletim avulso</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>Acidente *</Label>
+                <Label>Acidente (opcional)</Label>
                 <Select 
-                  value={formData.acidente_id} 
-                  onValueChange={(v) => setFormData({ ...formData, acidente_id: v })}
+                  value={formData.acidente_id || 'none'} 
+                  onValueChange={(v) => setFormData({ ...formData, acidente_id: v === 'none' ? '' : v })}
                 >
                   <SelectTrigger data-testid="select-acidente">
                     <SelectValue placeholder={loadingAcidentes ? "Carregando..." : "Selecione um acidente"} />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Sem acidente associado (boletim avulso)</SelectItem>
                     {acidentes.map(a => (
                       <SelectItem key={a.acidente_id} value={a.acidente_id}>
                         {a.tipo_acidente?.replace(/_/g, ' ')} - {a.gravidade} - {new Date(a.created_at).toLocaleDateString('pt-AO')}

@@ -22,6 +22,9 @@ import PerfilPage from './pages/PerfilPage';
 import UtilizadoresPage from './pages/UtilizadoresPage';
 import HistoricoPage from './pages/HistoricoPage';
 import CidadaosPage from './pages/CidadaosPage';
+import NotificacoesHistoricoPage from './pages/NotificacoesHistoricoPage';
+import NotificacoesCidadaoPage from './pages/NotificacoesCidadaoPage';
+import NotificacoesAgentePage from './pages/NotificacoesAgentePage';
 
 // Notifications wrapper component
 function NotificationsProvider({ children }) {
@@ -121,6 +124,18 @@ function AppRouter() {
         <ProtectedRoute><CidadaosPage /></ProtectedRoute>
       } />
       
+      <Route path="/notificacoes-historico" element={
+        <ProtectedRoute><NotificacoesHistoricoPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/notificacoes/cidadao" element={
+        <ProtectedRoute><NotificacoesCidadaoPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/notificacoes/agente" element={
+        <ProtectedRoute><NotificacoesAgentePage /></ProtectedRoute>
+      } />
+      
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
@@ -132,7 +147,30 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <AppRouter />
-        <Toaster position="top-right" richColors />
+        <Toaster
+          position="top-right"
+          richColors
+          expand={false}
+          closeButton
+          duration={4000}
+          toastOptions={{
+            style: {
+              borderRadius: '16px',
+              padding: '14px 18px',
+              fontSize: '13px',
+              fontWeight: '500',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)',
+              border: '1px solid rgba(0,0,0,0.06)',
+              backdropFilter: 'blur(8px)',
+            },
+            classNames: {
+              success: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+              error: 'bg-red-50 text-red-800 border-red-200',
+              warning: 'bg-amber-50 text-amber-800 border-amber-200',
+              info: 'bg-blue-50 text-blue-800 border-blue-200',
+            },
+          }}
+        />
       </AuthProvider>
     </BrowserRouter>
   );

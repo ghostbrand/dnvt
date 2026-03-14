@@ -13,11 +13,13 @@ import * as Location from 'expo-location';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
 import { COLORS, SPACING, FONTS, RADIUS } from '../config';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 
 export default function MapScreen({ navigation }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const isCidadao = user?.role === 'cidadao' || user?.tipo === 'cidadao';
   const [accidents, setAccidents] = useState([]);
   const [zones, setZones] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
@@ -46,7 +48,12 @@ export default function MapScreen({ navigation }) {
         api.getAcidentesAtivos(token),
         api.getZonasCriticas()
       ]);
-      setAccidents(accidentsData);
+      if (isCidadao) {
+        const userId = user?.id || user?._id;
+        setAccidents(accidentsData.filter(a => a.created_by === userId || a.created_by === user?.email));
+      } else {
+        setAccidents(accidentsData);
+      }
       setZones(zonesData);
     } catch (error) {
       console.error('Error loading map data:', error);
@@ -102,11 +109,11 @@ export default function MapScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backText}>← Voltar</Text>
+          <Ionicons name="arrow-back" size={22} color={COLORS.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mapa de Acidentes</Text>
+        <Text style={styles.headerTitle}>{isCidadao ? 'Meus Acidentes' : 'Mapa de Acidentes'}</Text>
         <TouchableOpacity onPress={loadData} style={styles.refreshButton}>
-          <Text style={styles.refreshText}>🔄</Text>
+          <Ionicons name="refresh" size={20} color={COLORS.white} />
         </TouchableOpacity>
       </View>
 
@@ -150,7 +157,7 @@ export default function MapScreen({ navigation }) {
               onPress={() => setSelectedAccident(accident)}
             >
               <View style={[styles.marker, { backgroundColor: getMarkerColor(accident.gravidade) }]}>
-                <Text style={styles.markerText}>🚗</Text>
+                <Ionicons name="car" size={18} color={COLORS.white} />
               </View>
             </Marker>
           ))}
@@ -193,7 +200,7 @@ export default function MapScreen({ navigation }) {
               style={styles.closeButton}
               onPress={() => setSelectedAccident(null)}
             >
-              <Text style={styles.closeText}>✕</Text>
+              <Ionicons name="close" size={18} color={COLORS.gray} />
             </TouchableOpacity>
             
             <View style={[
@@ -241,7 +248,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: COLORS.purple,
+    backgroundColor: COLORS.bgDark,
     paddingTop: 50,
     paddingBottom: SPACING.md,
     paddingHorizontal: SPACING.md,
@@ -261,9 +268,6 @@ const styles = StyleSheet.create({
   },
   refreshButton: {
     padding: SPACING.sm,
-  },
-  refreshText: {
-    fontSize: 20,
   },
   loadingContainer: {
     flex: 1,
@@ -285,9 +289,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 3,
     borderColor: COLORS.white,
-  },
-  markerText: {
-    fontSize: 18,
   },
   legend: {
     position: 'absolute',
@@ -351,10 +352,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.grayLight,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  closeText: {
-    fontSize: FONTS.md,
-    color: COLORS.gray,
   },
   gravityBadge: {
     alignSelf: 'flex-start',

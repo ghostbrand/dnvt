@@ -49,6 +49,13 @@ export default function ConfiguracoesPage() {
   });
   const [sendingSms, setSendingSms] = useState(false);
 
+  const [testEmail, setTestEmail] = useState({
+    to: '',
+    subject: 'Teste DNVT — Email Institucional',
+    body: 'Este é um email de teste do sistema DNVT.'
+  });
+  const [sendingEmail, setSendingEmail] = useState(false);
+
   useEffect(() => {
     const fetchConfig = async () => {
       try {
@@ -137,6 +144,32 @@ export default function ConfiguracoesPage() {
       toast.error('Erro ao enviar SMS');
     } finally {
       setSendingSms(false);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    if (!testEmail.to) {
+      toast.error('Digite o email de destino');
+      return;
+    }
+    setSendingEmail(true);
+    try {
+      const token = localStorage.getItem('dnvt_token');
+      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/email/testar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ to: testEmail.to, subject: testEmail.subject, body: testEmail.body })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Email de teste enviado com sucesso!');
+      } else {
+        toast.error(data.error || 'Erro ao enviar email de teste');
+      }
+    } catch (error) {
+      toast.error('Erro ao enviar email de teste');
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -404,6 +437,64 @@ export default function ConfiguracoesPage() {
                 <span className="text-xs font-semibold text-indigo-700">Email institucional configurado</span>
               </div>
             )}
+
+            <Separator />
+
+            {/* Test Email */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-bold text-[#1B2A4A]">Testar Envio de Email</h4>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Email de Destino</Label>
+                  <Input
+                    type="email"
+                    value={testEmail.to}
+                    onChange={(e) => setTestEmail({ ...testEmail, to: e.target.value })}
+                    placeholder="teste@email.com"
+                    className="rounded-xl border-slate-200 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Assunto</Label>
+                  <Input
+                    type="text"
+                    value={testEmail.subject}
+                    onChange={(e) => setTestEmail({ ...testEmail, subject: e.target.value })}
+                    placeholder="Assunto do email"
+                    className="rounded-xl border-slate-200 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Mensagem</Label>
+                <Input
+                  type="text"
+                  value={testEmail.body}
+                  onChange={(e) => setTestEmail({ ...testEmail, body: e.target.value })}
+                  placeholder="Corpo do email de teste"
+                  className="rounded-xl border-slate-200 text-sm"
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={handleTestEmail}
+                disabled={sendingEmail || !config.email_host || !config.email_user || !config.email_password}
+                className="rounded-xl border-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-all"
+              >
+                {sendingEmail ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Send className="w-4 h-4 mr-2" />
+                )}
+                Enviar Email de Teste
+              </Button>
+              {(!config.email_host || !config.email_user || !config.email_password) && (
+                <p className="text-[11px] text-amber-600 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  Preencha e salve as configurações SMTP primeiro
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
 

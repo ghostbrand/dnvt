@@ -19,8 +19,9 @@ const verifyToken = (token) => {
 // Login
 const login = async (req, res) => {
   try {
-    const { email, senha, password } = req.body;
+    const { email, senha, password, origem } = req.body;
     const userPassword = senha || password;
+    const isMobile = origem === 'mobile';
 
     if (!email || !userPassword) {
       return res.status(400).json({ detail: 'Email e senha são obrigatórios' });
@@ -38,7 +39,10 @@ const login = async (req, res) => {
             if (user.status === 'suspenso') {
               return res.status(403).json({ detail: 'Conta suspensa. Contacte o administrador.' });
             }
-            if (user.role === 'cidadao') {
+            if (user.status === 'pendente') {
+              return res.status(403).json({ detail: 'Conta pendente de aprovação. Aguarde a validação do administrador.' });
+            }
+            if (user.role === 'cidadao' && !isMobile) {
               return res.status(403).json({ detail: 'Cidadãos só têm acesso pela aplicação mobile.' });
             }
             return res.json({
@@ -55,7 +59,8 @@ const login = async (req, res) => {
                 bilhete_identidade: user.bilhete_identidade || '',
                 nivel_acesso: user.nivel_acesso || 'basico',
                 privilegios: user.privilegios || {},
-                status: user.status || 'ativo'
+                status: user.status || 'ativo',
+                created_at: user.createdAt || null
               }
             });
           }
@@ -197,7 +202,8 @@ const getMe = async (req, res) => {
             bilhete_identidade: user.bilhete_identidade || '',
             nivel_acesso: user.nivel_acesso || 'basico',
             privilegios: user.privilegios || {},
-            status: user.status || 'ativo'
+            status: user.status || 'ativo',
+            created_at: user.createdAt || null
           });
         }
       }

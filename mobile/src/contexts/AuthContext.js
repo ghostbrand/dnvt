@@ -4,6 +4,23 @@ import { API_URL } from '../services/api';
 
 const AuthContext = createContext(null);
 
+// Fetch with AbortController timeout to prevent hanging
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 12000) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') {
+      throw new Error('Servidor inacessível. Verifique se o backend está rodando e se está na mesma rede Wi-Fi.');
+    }
+    throw err;
+  }
+};
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -29,7 +46,7 @@ export function AuthProvider({ children }) {
 
   const fetchUser = async (authToken) => {
     try {
-      const response = await fetch(`${API_URL}/auth/me`, {
+      const response = await fetchWithTimeout(`${API_URL}/auth/me`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       
@@ -46,14 +63,14 @@ export function AuthProvider({ children }) {
   };
 
   const login = async (email, senha) => {
-    const response = await fetch(`${API_URL}/auth/login`, {
+    const response = await fetchWithTimeout(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, senha })
+      body: JSON.stringify({ email, senha, origem: 'mobile' })
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({ detail: 'Erro desconhecido' }));
       throw new Error(error.detail || 'Erro ao fazer login');
     }
 
@@ -64,22 +81,26 @@ export function AuthProvider({ children }) {
     return data;
   };
 
-  const register = async (nome, email, senha, telefone) => {
-    const response = await fetch(`${API_URL}/auth/register`, {
+  const register = async (nome, email, senha, telefone, bilhete_identidade) => {
+    const response = await fetchWithTimeout(`${API_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, email, senha, telefone, tipo: 'CIDADAO' })
+      body: JSON.stringify({ 
+        nome, email, senha, telefone, 
+        bilhete_identidade: bilhete_identidade || '',
+        tipo: 'cidadao', 
+        origem: 'mobile' 
+      })
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({ detail: 'Erro desconhecido' }));
       throw new Error(error.detail || 'Erro ao registrar');
     }
 
     const data = await response.json();
-    await AsyncStorage.setItem('dnvt_token', data.access_token);
-    setToken(data.access_token);
-    setUser(data.user);
+    // Do NOT auto-login — cidadao accounts are created with status 'pendente'
+    // and must be approved by an admin before they can access the app
     return data;
   };
 

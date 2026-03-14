@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
@@ -37,24 +37,38 @@ import {
   Users,
   History,
   Shield,
-  UserCheck
+  UserCheck,
+  Radio,
+  ChevronUp,
+  Send,
+  Eye,
+  Check,
+  CheckCheck
 } from 'lucide-react';
 import logoDnvt from '../img/Logo_DTSER.png';
 import logoGov from '../img/logo-g.png';
+import { notificacoesApi } from '../services/api';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Mapa', href: '/mapa', icon: Map },
   { name: 'Acidentes', href: '/acidentes', icon: Car },
   { name: 'Boletins', href: '/boletins', icon: FileText },
-  { name: 'Zonas Críticas', href: '/zonas-criticas', icon: AlertTriangle },
-  { name: 'Assistências', href: '/assistencias', icon: Ambulance },
+  { name: 'Zonas', href: '/zonas-criticas', icon: AlertTriangle },
   { name: 'Estatísticas', href: '/estatisticas', icon: BarChart3 },
 ];
 
 const adminNavigation = [
   { name: 'Utilizadores', href: '/utilizadores', icon: Users },
   { name: 'Cidadãos', href: '/cidadaos', icon: UserCheck },
+  {
+    name: 'Notificações', icon: Bell, submenu: true,
+    children: [
+      { name: 'Ao Cidadão', href: '/notificacoes/cidadao', icon: Send },
+      { name: 'Ao Agente', href: '/notificacoes/agente', icon: Radio },
+      { name: 'Histórico', href: '/notificacoes-historico', icon: History },
+    ]
+  },
   { name: 'Histórico', href: '/historico', icon: History },
   { name: 'Configurações', href: '/configuracoes', icon: Settings },
 ];
@@ -71,6 +85,11 @@ export default function Layout({ children }) {
   const [hovered, setHovered] = useState(false);
   const [activeAlertsCount, setActiveAlertsCount] = useState(0);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 1024);
+  const [notifications, setNotifications] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifSubOpen, setNotifSubOpen] = useState(false);
+  const notifRef = useRef(null);
+  const unreadCount = notifications.filter(n => !n.lida).length;
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 1024);
@@ -85,7 +104,7 @@ export default function Layout({ children }) {
   useEffect(() => {
     const fetchAlerts = async () => {
       try {
-        const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/acidentes/ativos`);
+        const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/acidentes/ativos`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('dnvt_token')}` } });
         if (res.ok) {
           const data = await res.json();
           setActiveAlertsCount(data.length);
@@ -98,6 +117,42 @@ export default function Layout({ children }) {
     const interval = setInterval(fetchAlerts, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch notifications
+  useEffect(() => {
+    const fetchNotifs = async () => {
+      try {
+        const data = await notificacoesApi.list();
+        setNotifications(Array.isArray(data) ? data.slice(0, 20) : []);
+      } catch (_) {}
+    };
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Close notification panel on outside click
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const handleMarkRead = async (id) => {
+    try {
+      await notificacoesApi.marcarLida(id);
+      setNotifications(prev => prev.map(n => n._id === id ? { ...n, lida: true } : n));
+    } catch (_) {}
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificacoesApi.marcarTodasLidas();
+      setNotifications(prev => prev.map(n => ({ ...n, lida: true })));
+    } catch (_) {}
+  };
 
   const handleLogout = () => {
     logout();
@@ -271,9 +326,64 @@ export default function Layout({ children }) {
                     </div>
                   )}
                   <div className="space-y-0.5">
-                    {adminNavigation.map((item) => (
-                      <NavItem key={item.name} item={item} />
-                    ))}
+                    {adminNavigation.map((item) => {
+                      if (item.submenu) {
+                        const isChildActive = item.children?.some(c => location.pathname === c.href || location.pathname.startsWith(c.href));
+                        const Icon = item.icon;
+                        return (
+                          <div key={item.name}>
+                            <button
+                              onClick={() => setNotifSubOpen(!notifSubOpen)}
+                              className={cn(
+                                "w-full flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-200",
+                                expanded ? "px-3 py-2.5" : "px-0 py-2.5 justify-center",
+                                isChildActive || notifSubOpen
+                                  ? "text-white bg-white/10"
+                                  : "text-slate-400 hover:text-white hover:bg-white/10"
+                              )}
+                            >
+                              <div className={cn(
+                                "w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0",
+                                isChildActive ? "bg-white/20" : "bg-white/5"
+                              )}>
+                                <Icon className="w-4 h-4" />
+                              </div>
+                              {expanded && (
+                                <>
+                                  <span className="text-[13px] truncate flex-1 text-left">{item.name}</span>
+                                  {notifSubOpen ? <ChevronUp className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+                                </>
+                              )}
+                            </button>
+                            {(notifSubOpen || !expanded) && expanded && (
+                              <div className="ml-5 pl-3 border-l border-white/10 mt-0.5 space-y-0.5">
+                                {item.children.map(child => {
+                                  const ChildIcon = child.icon;
+                                  const childActive = location.pathname === child.href || location.pathname.startsWith(child.href);
+                                  return (
+                                    <Link
+                                      key={child.name}
+                                      to={child.href}
+                                      onClick={() => setMobileOpen(false)}
+                                      className={cn(
+                                        "flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-all duration-200",
+                                        childActive
+                                          ? "text-white bg-white/10"
+                                          : "text-slate-500 hover:text-white hover:bg-white/5"
+                                      )}
+                                    >
+                                      <ChildIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                                      <span className="truncate">{child.name}</span>
+                                    </Link>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      return <NavItem key={item.name} item={item} />;
+                    })}
                   </div>
                 </div>
               )}
@@ -338,10 +448,11 @@ export default function Layout({ children }) {
               {/* Page breadcrumb */}
               <div className="hidden sm:flex items-center">
                 {(() => {
-                  const allNav = [...navigation, ...adminNavigation, { name: 'Perfil', href: '/perfil', icon: User }];
+                  const flatAdmin = adminNavigation.flatMap(n => n.submenu && n.children ? n.children : [n]);
+                  const allNav = [...navigation, ...flatAdmin, { name: 'Perfil', href: '/perfil', icon: User }];
                   const current = allNav.find(n =>
-                    location.pathname === n.href ||
-                    (n.href !== '/dashboard' && location.pathname.startsWith(n.href))
+                    n.href && (location.pathname === n.href ||
+                    (n.href !== '/dashboard' && location.pathname.startsWith(n.href)))
                   );
                   if (!current) return null;
                   const Icon = current.icon;
@@ -355,19 +466,119 @@ export default function Layout({ children }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {/* Notifications */}
-              <button
-                className="relative p-2.5 rounded-xl hover:bg-slate-100 transition-colors"
-                data-testid="notifications-btn"
-              >
-                <Bell className="w-5 h-5 text-slate-500" />
-                {activeAlertsCount > 0 && (
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
-                    {activeAlertsCount > 9 ? '9+' : activeAlertsCount}
-                  </span>
+            <div className="flex items-center gap-1.5">
+              {/* Active accidents indicator */}
+              {activeAlertsCount > 0 && (
+                <Link
+                  to="/acidentes"
+                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 transition-colors border border-red-200/60"
+                  title="Acidentes ativos"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-500 animate-pulse" />
+                  <span className="text-[11px] font-bold text-red-600">{activeAlertsCount}</span>
+                </Link>
+              )}
+
+              {/* Notification bell + dropdown */}
+              <div className="relative" ref={notifRef}>
+                <button
+                  className="relative p-2.5 rounded-xl hover:bg-slate-100 transition-colors"
+                  onClick={() => setNotifOpen(!notifOpen)}
+                  data-testid="notifications-btn"
+                >
+                  <Bell className="w-5 h-5 text-slate-500" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ring-white animate-pulse">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Notification dropdown panel */}
+                {notifOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-[340px] sm:w-[380px] bg-white rounded-2xl shadow-2xl shadow-slate-300/40 border border-slate-200/60 overflow-hidden z-50">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-slate-500" />
+                        <span className="text-sm font-bold text-slate-800">Notificações</span>
+                        {unreadCount > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-bold">{unreadCount} nova{unreadCount > 1 ? 's' : ''}</span>
+                        )}
+                      </div>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={handleMarkAllRead}
+                          className="text-[11px] text-blue-600 font-semibold hover:text-blue-800 transition-colors flex items-center gap-1"
+                        >
+                          <CheckCheck className="w-3 h-3" />
+                          Marcar todas
+                        </button>
+                      )}
+                    </div>
+                    {/* Notification list */}
+                    <div className="max-h-[360px] overflow-y-auto divide-y divide-slate-50">
+                      {notifications.length === 0 ? (
+                        <div className="py-8 text-center">
+                          <Bell className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                          <p className="text-xs text-slate-400">Sem notificações</p>
+                        </div>
+                      ) : (
+                        notifications.map(n => (
+                          <div
+                            key={n._id}
+                            className={cn(
+                              "flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer group",
+                              !n.lida && "bg-blue-50/40"
+                            )}
+                            onClick={() => {
+                              handleMarkRead(n._id);
+                              if (n.acidente_id) {
+                                navigate(`/acidentes/${n.acidente_id}`);
+                                setNotifOpen(false);
+                              }
+                            }}
+                          >
+                            <div className={cn(
+                              "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
+                              n.tipo === 'urgencia' ? "bg-red-100" : "bg-blue-100"
+                            )}>
+                              {n.tipo === 'urgencia' ? (
+                                <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                              ) : (
+                                <Bell className="w-3.5 h-3.5 text-blue-500" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={cn("text-xs leading-snug", !n.lida ? "font-semibold text-slate-800" : "text-slate-600")}>
+                                {n.titulo}
+                              </p>
+                              <p className="text-[11px] text-slate-400 mt-0.5 truncate">{n.mensagem}</p>
+                              <p className="text-[10px] text-slate-300 mt-1">
+                                {n.created_at ? new Date(n.created_at).toLocaleString('pt-AO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                              </p>
+                            </div>
+                            {!n.lida && (
+                              <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-2" />
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {/* Footer */}
+                    <div className="border-t border-slate-100 px-4 py-2.5 bg-slate-50/50">
+                      <Link
+                        to="/notificacoes-historico"
+                        onClick={() => setNotifOpen(false)}
+                        className="text-[11px] text-blue-600 font-semibold hover:text-blue-800 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <Eye className="w-3 h-3" />
+                        Ver todo o histórico
+                      </Link>
+                    </div>
+                  </div>
                 )}
-              </button>
+              </div>
 
               {/* User dropdown */}
               <DropdownMenu>

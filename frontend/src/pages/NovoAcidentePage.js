@@ -105,7 +105,7 @@ export default function NovoAcidentePage() {
     }
 
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async&libraries=places`;
     script.async = true;
     script.defer = true;
     script.onload = () => setMapLoaded(true);
@@ -184,14 +184,25 @@ export default function NovoAcidentePage() {
           
           reverseGeocode(lat, lng);
           setGettingLocation(false);
+          toast.success('Localização obtida com sucesso');
         },
         (error) => {
-          toast.error('Erro ao obter localização');
+          const msgs = {
+            1: 'Permissão de localização negada. Permita o acesso nas definições do navegador.',
+            2: 'Localização indisponível. Verifique se o GPS está ligado.',
+            3: 'Tempo esgotado ao obter localização. Tente novamente.',
+          };
+          toast.error(msgs[error.code] || 'Erro ao obter localização');
           setGettingLocation(false);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 60000,
         }
       );
     } else {
-      toast.error('Geolocalização não suportada');
+      toast.error('Geolocalização não suportada neste navegador');
       setGettingLocation(false);
     }
   };

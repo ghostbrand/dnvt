@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
 import KahootCard from '../components/KahootCard';
@@ -47,14 +48,14 @@ export default function AlertsScreen({ navigation }) {
     return colors[gravidade] || COLORS.gray;
   };
 
-  const getGravidadeEmoji = (gravidade) => {
-    const emojis = {
-      'FATAL': '🔴',
-      'GRAVE': '🟠',
-      'MODERADO': '🟡',
-      'LEVE': '🟢',
+  const getGravidadeIcon = (gravidade) => {
+    const icons = {
+      'FATAL': { name: 'alert-octagon', color: COLORS.red },
+      'GRAVE': { name: 'alert-triangle', color: COLORS.orange },
+      'MODERADO': { name: 'alert-circle', color: COLORS.yellow },
+      'LEVE': { name: 'info', color: COLORS.green },
     };
-    return emojis[gravidade] || '⚪';
+    return icons[gravidade] || { name: 'circle', color: COLORS.gray };
   };
 
   const filteredAccidents = accidents.filter(a => {
@@ -75,7 +76,7 @@ export default function AlertsScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backText}>← Voltar</Text>
+          <Feather name="arrow-left" size={18} color={COLORS.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Alertas</Text>
         <View style={styles.badge}>
@@ -118,24 +119,27 @@ export default function AlertsScreen({ navigation }) {
       >
         {filteredAccidents.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyEmoji}>🎉</Text>
+            <View style={styles.emptyIconContainer}>
+              <Feather name="shield" size={48} color={COLORS.green} />
+            </View>
             <Text style={styles.emptyText}>Nenhum acidente ativo</Text>
             <Text style={styles.emptySubtext}>As ruas estão seguras!</Text>
           </View>
         ) : (
           filteredAccidents.map((accident) => (
             <TouchableOpacity 
-              key={accident.acidente_id}
+              key={accident.acidente_id || accident._id}
               activeOpacity={0.9}
+              onPress={() => navigation.navigate('AccidentDetail', { accidentId: accident._id || accident.acidente_id })}
             >
               <View style={[
                 styles.alertCard,
                 { borderLeftColor: getGravidadeColor(accident.gravidade) }
               ]}>
                 <View style={styles.alertHeader}>
-                  <Text style={styles.alertEmoji}>
-                    {getGravidadeEmoji(accident.gravidade)}
-                  </Text>
+                  <View style={styles.alertIconWrap}>
+                    <Feather name={getGravidadeIcon(accident.gravidade).name} size={22} color={getGravidadeIcon(accident.gravidade).color} />
+                  </View>
                   <View style={styles.alertHeaderText}>
                     <Text style={styles.alertType}>
                       {accident.tipo_acidente?.replace(/_/g, ' ')}
@@ -158,19 +162,19 @@ export default function AlertsScreen({ navigation }) {
                 
                 <View style={styles.alertFooter}>
                   <View style={styles.alertStat}>
-                    <Text style={styles.alertStatEmoji}>🚗</Text>
+                    <Feather name="truck" size={12} color={COLORS.gray} style={{ marginRight: 4 }} />
                     <Text style={styles.alertStatText}>
                       {accident.numero_veiculos} veículo(s)
                     </Text>
                   </View>
                   <View style={styles.alertStat}>
-                    <Text style={styles.alertStatEmoji}>👤</Text>
+                    <Feather name="users" size={12} color={COLORS.gray} style={{ marginRight: 4 }} />
                     <Text style={styles.alertStatText}>
                       {accident.numero_vitimas} vítima(s)
                     </Text>
                   </View>
                   <View style={styles.alertStat}>
-                    <Text style={styles.alertStatEmoji}>📍</Text>
+                    <Feather name="map-pin" size={12} color={COLORS.gray} style={{ marginRight: 4 }} />
                     <Text style={styles.alertStatText}>
                       {accident.status}
                     </Text>
@@ -190,7 +194,7 @@ export default function AlertsScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.purple,
+    backgroundColor: COLORS.bgDark,
   },
   header: {
     flexDirection: 'row',
@@ -253,8 +257,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: 100,
   },
-  emptyEmoji: {
-    fontSize: 60,
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(76,175,80,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: SPACING.md,
   },
   emptyText: {
@@ -280,8 +289,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.sm,
   },
-  alertEmoji: {
-    fontSize: 24,
+  alertIconWrap: {
     marginRight: SPACING.sm,
   },
   alertHeaderText: {

@@ -16,7 +16,7 @@ import { utilizadoresApi } from '../services/api';
 import {
   Plus, Search, RefreshCw, Users, Shield, UserCheck, UserX,
   Phone, Mail, CreditCard, Key, AlertCircle, CheckCircle,
-  Loader2, MoreHorizontal, Copy, Eye, EyeOff, MapPin,
+  Loader2, MoreHorizontal, Copy, MapPin, Pencil,
   ChevronLeft, ChevronRight, Clock, ShieldCheck, ShieldOff
 } from 'lucide-react';
 import {
@@ -44,12 +44,14 @@ export default function UtilizadoresPage() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [senhaGerada, setSenhaGerada] = useState(null);
-  const [showSenha, setShowSenha] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resetResult, setResetResult] = useState(null);
   const [page, setPage] = useState(1);
   const [zonasDisponiveis, setZonasDisponiveis] = useState([]);
+  const [editingUser, setEditingUser] = useState(null);
+  const [zonaSearch, setZonaSearch] = useState('');
+  const [zonaPage, setZonaPage] = useState(1);
+  const ZONAS_PER_PAGE = 8;
 
   const [formData, setFormData] = useState({
     name: '', email: '', telefone: '', bilhete_identidade: '',
@@ -75,7 +77,7 @@ export default function UtilizadoresPage() {
       const data = await utilizadoresApi.list();
       setUtilizadores(data);
     } catch (err) {
-      toast.error('Erro ao carregar utilizadores');
+      toast.error('Erro ao carregar agentes');
     } finally {
       setLoading(false);
     }
@@ -88,7 +90,7 @@ export default function UtilizadoresPage() {
       });
       if (res.ok) {
         const zonas = await res.json();
-        setZonasDisponiveis(zonas.filter(z => z.nivel_risco === 'ALTO'));
+        setZonasDisponiveis(zonas);
       }
     } catch (err) { /* silent */ }
   };
@@ -101,9 +103,9 @@ export default function UtilizadoresPage() {
     setSaving(true);
     try {
       const result = await utilizadoresApi.create(formData);
-      setSenhaGerada(result.senha_gerada);
-      toast.success(`Utilizador ${result.name} criado com sucesso!`);
+      toast.success(`Agente ${result.name} criado com sucesso! A senha foi enviada por email.`);
       fetchUtilizadores();
+      closeAndReset();
     } catch (err) {
       toast.error(err.message || 'Erro ao criar utilizador');
     } finally {
@@ -114,10 +116,10 @@ export default function UtilizadoresPage() {
   const handleAprovar = async (id) => {
     try {
       await utilizadoresApi.aprovar(id);
-      toast.success('Utilizador aprovado! SMS de notificação enviado.');
+      toast.success('Agente aprovado! SMS de notificação enviado.');
       fetchUtilizadores();
     } catch (err) {
-      toast.error('Erro ao aprovar utilizador');
+      toast.error('Erro ao aprovar agente');
     }
   };
 
@@ -126,7 +128,7 @@ export default function UtilizadoresPage() {
       const result = await utilizadoresApi.resetSenha(id);
       setResetResult(result);
       setResetDialogOpen(true);
-      toast.success('Senha redefinida! SMS enviado ao utilizador.');
+      toast.success('Senha redefinida! SMS enviado ao agente.');
     } catch (err) {
       toast.error('Erro ao redefinir senha');
     }
@@ -135,17 +137,61 @@ export default function UtilizadoresPage() {
   const handleSuspender = async (id) => {
     try {
       await utilizadoresApi.suspender(id);
-      toast.success('Utilizador suspenso');
+      toast.success('Agente suspenso');
       fetchUtilizadores();
     } catch (err) {
-      toast.error('Erro ao suspender utilizador');
+      toast.error('Erro ao suspender agente');
+    }
+  };
+
+  const openEditDialog = (u) => {
+    setEditingUser(u);
+    setFormData({
+      name: u.name || '',
+      email: u.email || '',
+      telefone: u.telefone || '',
+      bilhete_identidade: u.bilhete_identidade || '',
+      endereco: u.endereco || '',
+      role: u.role || 'policia',
+      nivel_acesso: u.nivel_acesso || 'basico',
+      privilegios: u.privilegios || {
+        gestao_acidentes: true, gestao_boletins: true, gestao_zonas: false,
+        gestao_assistencias: true, gestao_utilizadores: false, ver_estatisticas: true,
+        configuracoes: false, exportar_dados: true
+      },
+      alertas_novos_acidentes: u.alertas_novos_acidentes ?? true,
+      alertas_sonoros: u.alertas_sonoros ?? true,
+      alertas_sms: u.alertas_sms ?? false,
+      zonas_notificacao: u.zonas_notificacao || []
+    });
+    setZonaSearch('');
+    setZonaPage(1);
+    setDialogOpen(true);
+  };
+
+  const handleUpdateUser = async () => {
+    if (!formData.name || !formData.email) {
+      toast.error('Nome e email são obrigatórios');
+      return;
+    }
+    setSaving(true);
+    try {
+      await utilizadoresApi.update(editingUser._id, formData);
+      toast.success(`Agente ${formData.name} atualizado com sucesso!`);
+      fetchUtilizadores();
+      closeAndReset();
+    } catch (err) {
+      toast.error(err.message || 'Erro ao atualizar utilizador');
+    } finally {
+      setSaving(false);
     }
   };
 
   const closeAndReset = () => {
     setDialogOpen(false);
-    setSenhaGerada(null);
-    setShowSenha(false);
+    setEditingUser(null);
+    setZonaSearch('');
+    setZonaPage(1);
     setFormData({
       name: '', email: '', telefone: '', bilhete_identidade: '',
       endereco: '', role: 'policia', nivel_acesso: 'basico',
@@ -238,7 +284,7 @@ export default function UtilizadoresPage() {
               <AlertCircle className="w-10 h-10 text-red-400" />
             </div>
             <h2 className="text-xl font-bold text-[#1B2A4A] mb-2">Acesso Restrito</h2>
-            <p className="text-slate-400 text-sm">Apenas administradores podem gerir utilizadores</p>
+            <p className="text-slate-400 text-sm">Apenas administradores podem gerir agentes</p>
           </div>
         </div>
       </Layout>
@@ -247,6 +293,39 @@ export default function UtilizadoresPage() {
 
   return (
     <Layout>
+      {/* Sub-header filter bar — flush below main header */}
+      <div className="sticky top-16 z-20 -mx-4 lg:-mx-6 -mt-4 lg:-mt-6 mb-4 lg:mb-6">
+        <div className="bg-gradient-to-r from-[#0f1c36] via-[#162848] to-[#1a3058] shadow-lg shadow-[#1B2A4A]/10">
+          <div className="px-4 lg:px-6">
+            <div className="flex items-center gap-0.5 overflow-x-auto scrollbar-hide">
+              {SIDE_MENUS.map(({ key, label, icon: Icon }) => {
+                const active = activeFilter === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveFilter(key)}
+                    className={`relative flex items-center gap-2 px-4 lg:px-5 py-3.5 text-[12px] lg:text-[13px] font-semibold whitespace-nowrap transition-all duration-300 flex-shrink-0 group ${
+                      active ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 transition-colors duration-300 ${active ? 'text-blue-300' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                    <span>{label}</span>
+                    <span className={`min-w-[22px] h-[22px] px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center transition-all duration-300 ${
+                      active ? 'bg-white/20 text-white' : 'bg-white/8 text-slate-400 group-hover:bg-white/12 group-hover:text-slate-300'
+                    }`}>
+                      {counts[key]}
+                    </span>
+                    <span className={`absolute bottom-0 left-2 right-2 h-[3px] rounded-t-full transition-all duration-300 ${
+                      active ? 'bg-blue-400' : 'bg-transparent group-hover:bg-white/10'
+                    }`} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <TooltipProvider>
         <div className="flex gap-0" data-testid="utilizadores-page">
           {/* ===== Main content ===== */}
@@ -254,8 +333,11 @@ export default function UtilizadoresPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 animate-slide-up">
               <div>
-                <h1 className="text-3xl font-extrabold text-[#1B2A4A] tracking-tight">Utilizadores</h1>
-                <p className="text-slate-400 text-sm mt-0.5">Gestão de contas e permissões do sistema</p>
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge className="bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider">Subsistema</Badge>
+                </div>
+                <h1 className="text-3xl font-extrabold text-[#1B2A4A] tracking-tight">Gestão de Agentes</h1>
+                <p className="text-slate-400 text-sm mt-0.5">Gestão de contas e permissões dos agentes do sistema</p>
               </div>
               <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) closeAndReset(); else setDialogOpen(true); }}>
                 <DialogTrigger asChild>
@@ -264,45 +346,14 @@ export default function UtilizadoresPage() {
                     style={{ background: 'linear-gradient(135deg, #1B2A4A 0%, #2B4075 100%)' }}
                   >
                     <Plus className="w-4 h-4 mr-2" />
-                    Novo Utilizador
+                    Novo Agente
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="rounded-2xl max-w-lg max-h-[90vh] overflow-y-auto">
-                  {senhaGerada ? (
                     <>
                       <DialogHeader>
-                        <DialogTitle className="text-xl font-bold text-[#1B2A4A]">Utilizador Criado!</DialogTitle>
-                        <DialogDescription>Guarde a senha gerada. Ela será enviada por email ao utilizador.</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-                          <div className="flex items-center gap-2 mb-3">
-                            <CheckCircle className="w-5 h-5 text-emerald-600" />
-                            <p className="text-sm font-bold text-emerald-700">Senha Gerada Automaticamente</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <code className="flex-1 bg-white rounded-lg px-3 py-2 text-sm font-mono border border-emerald-200">
-                              {showSenha ? senhaGerada : '••••••••••'}
-                            </code>
-                            <Button variant="outline" size="sm" onClick={() => setShowSenha(!showSenha)} className="rounded-lg">
-                              {showSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(senhaGerada); toast.success('Senha copiada!'); }} className="rounded-lg">
-                              <Copy className="w-4 h-4" />
-                            </Button>
-                          </div>
-                          <p className="text-[11px] text-emerald-600 mt-2">Esta senha será enviada ao email institucional do utilizador.</p>
-                        </div>
-                        <Button onClick={closeAndReset} className="w-full rounded-xl" style={{ background: 'linear-gradient(135deg, #1B2A4A 0%, #2B4075 100%)' }}>
-                          Fechar
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <DialogHeader>
-                        <DialogTitle className="text-xl font-bold text-[#1B2A4A]">Cadastrar Novo Utilizador</DialogTitle>
-                        <DialogDescription>A senha será gerada automaticamente e enviada por email.</DialogDescription>
+                        <DialogTitle className="text-xl font-bold text-[#1B2A4A]">{editingUser ? 'Editar Agente' : 'Cadastrar Novo Agente'}</DialogTitle>
+                        <DialogDescription>{editingUser ? 'Atualize as informações do agente.' : 'A senha será gerada automaticamente e enviada por email ao agente.'}</DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 py-2">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -339,7 +390,7 @@ export default function UtilizadoresPage() {
 
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1.5">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tipo de Utilizador</Label>
+                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tipo de Agente</Label>
                             <Select value={formData.role} onValueChange={handleRoleChange}>
                               <SelectTrigger className="rounded-xl border-slate-200">
                                 <SelectValue />
@@ -395,36 +446,73 @@ export default function UtilizadoresPage() {
                           </div>
                         </div>
 
-                        {/* Zonas Monitoradas */}
-                        {zonasDisponiveis.length > 0 && (
-                          <div>
-                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Zonas Monitoradas</Label>
-                            <p className="text-[10px] text-slate-400 mb-2">Selecione as zonas para receber alertas</p>
-                            <div className="grid grid-cols-1 gap-1.5 max-h-32 overflow-y-auto">
-                              {zonasDisponiveis.map(zona => (
-                                <label key={zona.zona_id || zona._id} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 cursor-pointer transition-colors border border-transparent hover:border-blue-200">
-                                  <input
-                                    type="checkbox"
-                                    className="rounded accent-blue-600"
-                                    checked={formData.zonas_notificacao.includes(zona.zona_id || zona._id)}
-                                    onChange={(e) => {
-                                      const id = zona.zona_id || zona._id;
-                                      if (e.target.checked) {
-                                        setFormData({...formData, zonas_notificacao: [...formData.zonas_notificacao, id]});
-                                      } else {
-                                        setFormData({...formData, zonas_notificacao: formData.zonas_notificacao.filter(z => z !== id)});
-                                      }
-                                    }}
-                                  />
-                                  <div className="flex items-center gap-1.5">
-                                    <MapPin className="w-3 h-3 text-red-400" />
-                                    <span className="text-xs font-medium text-slate-600">{zona.nome || `Zona ${(zona.zona_id || zona._id).slice(-6)}`}</span>
+                        {/* Zonas Monitoradas — with search + pagination */}
+                        {zonasDisponiveis.length > 0 && (() => {
+                          const filtered = zonasDisponiveis.filter(z =>
+                            !zonaSearch || (z.nome || '').toLowerCase().includes(zonaSearch.toLowerCase())
+                          );
+                          const totalZonaPages = Math.max(1, Math.ceil(filtered.length / ZONAS_PER_PAGE));
+                          const pagedZonas = filtered.slice((zonaPage - 1) * ZONAS_PER_PAGE, zonaPage * ZONAS_PER_PAGE);
+                          return (
+                            <div>
+                              <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Zonas Monitoradas</Label>
+                              <p className="text-[10px] text-slate-400 mb-2">Selecione as zonas para receber alertas ({formData.zonas_notificacao.length} selecionada{formData.zonas_notificacao.length !== 1 ? 's' : ''})</p>
+                              <div className="relative mb-2">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                                <Input
+                                  placeholder="Pesquisar zonas..."
+                                  value={zonaSearch}
+                                  onChange={e => { setZonaSearch(e.target.value); setZonaPage(1); }}
+                                  className="pl-9 h-8 text-xs rounded-xl border-slate-200"
+                                />
+                              </div>
+                              <div className="grid grid-cols-1 gap-1.5">
+                                {pagedZonas.map(zona => {
+                                  const zid = zona.zona_id || zona._id;
+                                  const checked = formData.zonas_notificacao.includes(zid);
+                                  return (
+                                    <label key={zid} className={`flex items-center gap-2.5 p-2.5 rounded-xl cursor-pointer transition-colors border ${
+                                      checked ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-transparent hover:bg-blue-50 hover:border-blue-200'
+                                    }`}>
+                                      <input
+                                        type="checkbox"
+                                        className="rounded accent-blue-600"
+                                        checked={checked}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setFormData({...formData, zonas_notificacao: [...formData.zonas_notificacao, zid]});
+                                          } else {
+                                            setFormData({...formData, zonas_notificacao: formData.zonas_notificacao.filter(z => z !== zid)});
+                                          }
+                                        }}
+                                      />
+                                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                        <MapPin className={`w-3 h-3 flex-shrink-0 ${
+                                          zona.nivel_risco === 'ALTO' ? 'text-red-500' :
+                                          zona.nivel_risco === 'MEDIO' ? 'text-amber-500' : 'text-emerald-500'
+                                        }`} />
+                                        <span className="text-xs font-medium text-slate-600 truncate">{zona.nome || `Zona ${zid.slice(-6)}`}</span>
+                                      </div>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                              {totalZonaPages > 1 && (
+                                <div className="flex items-center justify-between mt-2">
+                                  <span className="text-[10px] text-slate-400">{filtered.length} zona{filtered.length !== 1 ? 's' : ''} · Pág {zonaPage}/{totalZonaPages}</span>
+                                  <div className="flex items-center gap-1">
+                                    <Button variant="outline" size="sm" className="h-6 w-6 p-0 rounded-lg" disabled={zonaPage <= 1} onClick={() => setZonaPage(p => p - 1)}>
+                                      <ChevronLeft className="w-3 h-3" />
+                                    </Button>
+                                    <Button variant="outline" size="sm" className="h-6 w-6 p-0 rounded-lg" disabled={zonaPage >= totalZonaPages} onClick={() => setZonaPage(p => p + 1)}>
+                                      <ChevronRight className="w-3 h-3" />
+                                    </Button>
                                   </div>
-                                </label>
-                              ))}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         <Separator />
 
@@ -456,19 +544,40 @@ export default function UtilizadoresPage() {
                         </div>
 
                         <Button
-                          onClick={handleCreateUser}
+                          onClick={editingUser ? handleUpdateUser : handleCreateUser}
                           disabled={saving}
                           className="w-full h-11 rounded-xl font-semibold"
                           style={{ background: 'linear-gradient(135deg, #1B2A4A 0%, #2B4075 100%)' }}
                         >
-                          {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-                          Cadastrar Utilizador
+                          {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : editingUser ? <Pencil className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                          {editingUser ? 'Guardar Alterações' : 'Cadastrar Agente'}
                         </Button>
                       </div>
                     </>
-                  )}
                 </DialogContent>
               </Dialog>
+            </div>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { label: 'Total', value: counts.all, icon: Users, color: '#1B2A4A' },
+                { label: 'Pendentes', value: counts.pendente, icon: Clock, color: '#d97706' },
+                { label: 'Ativos', value: counts.ativo, icon: ShieldCheck, color: '#059669' },
+                { label: 'Suspensos', value: counts.suspenso, icon: ShieldOff, color: '#dc2626' },
+              ].map(({ label, value, icon: Icon, color }) => (
+                <Card key={label} className="border-0 shadow-sm rounded-2xl">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${color}15` }}>
+                      <Icon className="w-5 h-5" style={{ color }} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-extrabold" style={{ color }}>{value}</p>
+                      <p className="text-[11px] text-slate-400 font-medium">{label}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
 
             {/* Pending approvals */}
@@ -519,14 +628,14 @@ export default function UtilizadoresPage() {
 
             {/* Users Table */}
             <Card className="border-0 shadow-md shadow-slate-200/50 rounded-2xl overflow-hidden">
-              <CardContent className="p-0">
-                <Table>
+              <CardContent className="p-0 overflow-x-auto">
+                <Table className="min-w-[600px]">
                   <TableHeader>
                     <TableRow className="bg-slate-50/80">
-                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Utilizador</TableHead>
-                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Contacto</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Agente</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Contacto</TableHead>
                       <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tipo</TableHead>
-                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nível</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Nível</TableHead>
                       <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status</TableHead>
                       <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Ações</TableHead>
                     </TableRow>
@@ -542,7 +651,7 @@ export default function UtilizadoresPage() {
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-12">
                           <Users className="w-14 h-14 mx-auto text-slate-200 mb-3" />
-                          <p className="text-slate-400 font-medium">Nenhum utilizador encontrado</p>
+                          <p className="text-slate-400 font-medium">Nenhum agente encontrado</p>
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -559,14 +668,14 @@ export default function UtilizadoresPage() {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="hidden sm:table-cell">
                             <div className="text-xs text-slate-500 space-y-0.5">
                               <div className="flex items-center gap-1"><Phone className="w-3 h-3" />{u.telefone || '—'}</div>
                               <div className="flex items-center gap-1"><CreditCard className="w-3 h-3" />{u.bilhete_identidade || '—'}</div>
                             </div>
                           </TableCell>
                           <TableCell>{getRoleBadge(u.role)}</TableCell>
-                          <TableCell>
+                          <TableCell className="hidden md:table-cell">
                             <span className="text-xs font-medium text-slate-500 capitalize">{u.nivel_acesso || 'basico'}</span>
                           </TableCell>
                           <TableCell>{getStatusBadge(u.status || 'ativo')}</TableCell>
@@ -578,6 +687,9 @@ export default function UtilizadoresPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="rounded-xl w-48">
+                                <DropdownMenuItem onClick={() => openEditDialog(u)} className="rounded-lg">
+                                  <Pencil className="w-4 h-4 mr-2" /> Editar
+                                </DropdownMenuItem>
                                 {u.status === 'pendente' && (
                                   <DropdownMenuItem onClick={() => handleAprovar(u._id)} className="text-emerald-600 rounded-lg">
                                     <UserCheck className="w-4 h-4 mr-2" /> Aprovar
@@ -609,7 +721,7 @@ export default function UtilizadoresPage() {
                 {totalPages > 1 && (
                   <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
                     <p className="text-xs text-slate-400">
-                      {filteredUsers.length} utilizador{filteredUsers.length !== 1 ? 'es' : ''} · Página {page} de {totalPages}
+                      {filteredUsers.length} agente{filteredUsers.length !== 1 ? 's' : ''} · Página {page} de {totalPages}
                     </p>
                     <div className="flex items-center gap-1">
                       <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="rounded-lg h-8 w-8 p-0">
@@ -640,64 +752,12 @@ export default function UtilizadoresPage() {
             </Card>
           </div>
 
-          {/* ===== Right mini sidebar ===== */}
-          <div className="flex flex-col w-14 ml-4 flex-shrink-0 sticky top-20 self-start">
-            <div className="flex flex-col items-center gap-1.5 py-3 px-1 bg-white rounded-2xl shadow-md border border-slate-100">
-              {SIDE_MENUS.map(({ key, label, icon: Icon, color, bg, border: borderColor }) => {
-                const isActive = activeFilter === key;
-                const count = counts[key];
-                return (
-                  <Tooltip key={key} delayDuration={0}>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={() => setActiveFilter(key)}
-                        className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200"
-                        style={isActive ? {
-                          backgroundColor: bg,
-                          border: `1.5px solid ${borderColor}`,
-                          color: color,
-                        } : { color: '#94a3b8' }}
-                      >
-                        <Icon style={{ width: 18, height: 18 }} />
-                        {count > 0 && (
-                          <span
-                            className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center text-white"
-                            style={{ backgroundColor: color }}
-                          >
-                            {count > 99 ? '99+' : count}
-                          </span>
-                        )}
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="left" className="text-xs font-semibold">
-                      {label} ({count})
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              })}
-
-              <div className="w-6 h-px bg-slate-200 my-1 rounded" />
-
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={fetchUtilizadores}
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="left" className="text-xs font-semibold">Atualizar</TooltipContent>
-              </Tooltip>
-            </div>
-          </div>
-
           {/* Reset password dialog */}
           <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
             <DialogContent className="rounded-2xl max-w-sm">
               <DialogHeader>
                 <DialogTitle className="text-lg font-bold text-[#1B2A4A]">Senha Redefinida</DialogTitle>
-                <DialogDescription>A nova senha foi enviada por SMS ao utilizador.</DialogDescription>
+                <DialogDescription>A nova senha foi enviada por SMS ao agente.</DialogDescription>
               </DialogHeader>
               {resetResult && (
                 <div className="space-y-3 py-2">
@@ -721,6 +781,7 @@ export default function UtilizadoresPage() {
               )}
             </DialogContent>
           </Dialog>
+
         </div>
       </TooltipProvider>
     </Layout>

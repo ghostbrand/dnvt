@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -26,7 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu';
-import { acidentesApi } from '../services/api';
+import { acidentesApi, assistenciasApi, boletinsApi } from '../services/api';
 import { 
   Plus, 
   Search, 
@@ -38,43 +38,101 @@ import {
   Filter,
   Download,
   RefreshCw,
-  Car
+  Car,
+  AlertTriangle,
+  Activity,
+  Clock,
+  CheckCircle,
+  Ambulance,
+  FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AcidentesPage() {
   const navigate = useNavigate();
   const [acidentes, setAcidentes] = useState([]);
+  const [allAssistencias, setAllAssistencias] = useState([]);
+  const [allBoletins, setAllBoletins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterGravidade, setFilterGravidade] = useState('all');
   const [filterOrigem, setFilterOrigem] = useState('all');
+  const [filterExtra, setFilterExtra] = useState('all'); // all | com_assist | sem_assist | com_boletim | sem_boletim
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const pollRef = useRef(null);
+  const [confirmAction, setConfirmAction] = useState(null); // { title, desc, color, action }
 
-  const fetchAcidentes = async () => {
-    setLoading(true);
+  const fetchAcidentes = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const params = {};
-      if (filterStatus !== 'all') params.status = filterStatus;
-      if (filterGravidade !== 'all') params.gravidade = filterGravidade;
-      if (filterOrigem !== 'all') params.origem = filterOrigem;
-      
-      const data = await acidentesApi.list(params);
+      const [data, assistData, boletinsData] = await Promise.all([
+        acidentesApi.list(),
+        assistenciasApi.list().catch(() => []),
+        boletinsApi.list().catch(() => [])
+      ]);
       setAcidentes(data);
+      setAllAssistencias(assistData);
+      setAllBoletins(boletinsData);
+      setLastRefresh(new Date());
     } catch (error) {
-      toast.error('Erro ao carregar acidentes');
+      if (!silent) toast.error('Erro ao carregar acidentes');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchAcidentes();
-  }, [filterStatus, filterGravidade, filterOrigem]);
+  }, [fetchAcidentes]);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    pollRef.current = setInterval(() => fetchAcidentes(true), 30000);
+    return () => clearInterval(pollRef.current);
+  }, [fetchAcidentes]);
+
+  const handleQuickStatus = async (id, newStatus) => {
+    try {
+      await acidentesApi.update(id, { status: newStatus });
+      toast.success(`Status atualizado para ${newStatus.replace(/_/g, ' ')}`);
+      fetchAcidentes(true);
+    } catch (error) {
+      toast.error('Erro ao atualizar status');
+    }
+  };
+
+  const confirmAndRun = (title, desc, color, action) => {
+    setConfirmAction({ title, desc, color, action });
+  };
+  const runConfirmedAction = async () => {
+    if (confirmAction?.action) await confirmAction.action();
+    setConfirmAction(null);
+  };
+
+  const getId = (a) => a._id || a.acidente_id;
+
+  // Build cross-reference sets
+  const acidentesComAssist = new Set(allAssistencias.map(a => a.acidente_id));
+  const acidentesComBoletim = new Set(allBoletins.map(b => b.acidente_id));
+
+  // Stats
+  const stats = {
+    total: acidentes.length,
+    ativos: acidentes.filter(a => ['REPORTADO', 'VALIDADO', 'EM_ATENDIMENTO'].includes(a.status)).length,
+    hoje: acidentes.filter(a => {
+      const d = new Date(a.created_at);
+      const now = new Date();
+      return d.toDateString() === now.toDateString();
+    }).length,
+    graves: acidentes.filter(a => a.gravidade === 'GRAVE' || a.gravidade === 'FATAL').length,
+    comAssist: acidentes.filter(a => acidentesComAssist.has(getId(a))).length,
+    semAssist: acidentes.filter(a => !acidentesComAssist.has(getId(a))).length,
+    comBoletim: acidentes.filter(a => acidentesComBoletim.has(getId(a))).length,
+    semBoletim: acidentes.filter(a => !acidentesComBoletim.has(getId(a))).length,
+  };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Tem certeza que deseja remover este acidente?')) return;
-    
     try {
       await acidentesApi.delete(id);
       toast.success('Acidente removido');
@@ -84,11 +142,28 @@ export default function AcidentesPage() {
     }
   };
 
-  const filteredAcidentes = acidentes.filter(a => 
-    a.descricao?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    a.tipo_acidente?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    a.acidente_id?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredAcidentes = acidentes.filter(a => {
+    // Text search
+    const matchesSearch = !searchTerm || 
+      a.descricao?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.tipo_acidente?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getId(a)?.toLowerCase().includes(searchTerm.toLowerCase());
+    // Status filter
+    const matchesStatus = filterStatus === 'all' || a.status === filterStatus;
+    // Gravidade filter
+    const matchesGravidade = filterGravidade === 'all' || a.gravidade === filterGravidade;
+    // Origem filter
+    const matchesOrigem = filterOrigem === 'all' || a.origem_registro === filterOrigem;
+    // Extra filter (assistência / boletim)
+    let matchesExtra = true;
+    const aid = getId(a);
+    if (filterExtra === 'com_assist') matchesExtra = acidentesComAssist.has(aid);
+    else if (filterExtra === 'sem_assist') matchesExtra = !acidentesComAssist.has(aid);
+    else if (filterExtra === 'com_boletim') matchesExtra = acidentesComBoletim.has(aid);
+    else if (filterExtra === 'sem_boletim') matchesExtra = !acidentesComBoletim.has(aid);
+    
+    return matchesSearch && matchesStatus && matchesGravidade && matchesOrigem && matchesExtra;
+  });
 
   const getStatusBadge = (status) => {
     const styles = {
@@ -120,8 +195,51 @@ export default function AcidentesPage() {
     return <Badge className={styles[gravidade]}>{gravidade}</Badge>;
   };
 
+  // Floating pill menu items — Sem Assistência first
+  const PILL_FILTERS = [
+    { value: 'all', label: 'Todos', count: stats.total },
+    { value: 'sem_assist', label: 'Sem Assistência', count: stats.semAssist },
+    { value: 'sem_boletim', label: 'Sem Boletim', count: stats.semBoletim },
+    { value: 'com_assist', label: 'Com Assistência', count: stats.comAssist },
+    { value: 'com_boletim', label: 'Com Boletim', count: stats.comBoletim },
+  ];
+
   return (
     <Layout>
+      {/* Sub-header filter bar — flush below main header */}
+      <div className="sticky top-16 z-20 -mx-4 lg:-mx-6 -mt-4 lg:-mt-6 mb-4 lg:mb-6">
+        <div className="bg-gradient-to-r from-[#0f1c36] via-[#162848] to-[#1a3058] shadow-lg shadow-[#1B2A4A]/10">
+          <div className="px-4 lg:px-6">
+            <div className="flex items-center gap-0.5 overflow-x-auto scrollbar-hide">
+              {PILL_FILTERS.map(f => {
+                const active = filterExtra === f.value;
+                return (
+                  <button
+                    key={f.value}
+                    onClick={() => setFilterExtra(f.value)}
+                    className={`relative flex items-center gap-2 px-4 lg:px-5 py-3.5 text-[12px] lg:text-[13px] font-semibold whitespace-nowrap transition-all duration-300 flex-shrink-0 group ${
+                      active
+                        ? 'text-white'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span>{f.label}</span>
+                    <span className={`min-w-[22px] h-[22px] px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center transition-all duration-300 ${
+                      active ? 'bg-white/20 text-white' : 'bg-white/8 text-slate-400 group-hover:bg-white/12 group-hover:text-slate-300'
+                    }`}>
+                      {f.count}
+                    </span>
+                    <span className={`absolute bottom-0 left-2 right-2 h-[3px] rounded-t-full transition-all duration-300 ${
+                      active ? 'bg-blue-400' : 'bg-transparent group-hover:bg-white/10'
+                    }`} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="space-y-6" data-testid="acidentes-page">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -129,16 +247,61 @@ export default function AcidentesPage() {
             <h1 className="text-3xl font-extrabold text-[#1B2A4A] tracking-tight">Acidentes</h1>
             <p className="text-slate-400 text-sm mt-0.5">Gestão de registros de acidentes</p>
           </div>
-          <Link to="/acidentes/novo" className="animate-slide-up stagger-1" style={{opacity: 0}}>
-            <Button 
-              className="h-11 px-6 rounded-xl text-sm font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
-              style={{ background: 'linear-gradient(135deg, #1B2A4A 0%, #2B4075 100%)' }}
-              data-testid="new-accident-btn"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Acidente
+          <div className="flex gap-2 animate-slide-up stagger-1" style={{opacity: 0}}>
+            <Link to="/acidentes/novo">
+              <Button 
+                className="h-11 px-6 rounded-xl text-sm font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                style={{ background: 'linear-gradient(135deg, #1B2A4A 0%, #2B4075 100%)' }}
+                data-testid="new-accident-btn"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Acidente
+              </Button>
+            </Link>
+            <Button variant="outline" onClick={() => fetchAcidentes()} data-testid="refresh-btn" className="rounded-xl border-slate-200 hover:bg-slate-100 h-11 w-11 p-0">
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
-          </Link>
+          </div>
+        </div>
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 animate-slide-up stagger-1" style={{opacity: 0}}>
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+              <Car className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-[#1B2A4A]">{stats.total}</p>
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Total</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+              <Activity className="w-5 h-5 text-orange-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-orange-600">{stats.ativos}</p>
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Ativos</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <Clock className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-emerald-600">{stats.hoje}</p>
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Hoje</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-red-600">{stats.graves}</p>
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Graves/Fatal</p>
+            </div>
+          </div>
         </div>
 
         {/* Filters */}
@@ -155,9 +318,8 @@ export default function AcidentesPage() {
                   data-testid="search-input"
                 />
               </div>
-              
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full md:w-40 rounded-xl border-slate-200" data-testid="filter-status">
+                <SelectTrigger className="w-full md:w-36 rounded-xl border-slate-200" data-testid="filter-status">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
@@ -168,9 +330,8 @@ export default function AcidentesPage() {
                   <SelectItem value="ENCERRADO">Encerrado</SelectItem>
                 </SelectContent>
               </Select>
-              
               <Select value={filterGravidade} onValueChange={setFilterGravidade}>
-                <SelectTrigger className="w-full md:w-40 rounded-xl border-slate-200" data-testid="filter-gravidade">
+                <SelectTrigger className="w-full md:w-36 rounded-xl border-slate-200" data-testid="filter-gravidade">
                   <SelectValue placeholder="Gravidade" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
@@ -181,9 +342,8 @@ export default function AcidentesPage() {
                   <SelectItem value="FATAL">Fatal</SelectItem>
                 </SelectContent>
               </Select>
-              
               <Select value={filterOrigem} onValueChange={setFilterOrigem}>
-                <SelectTrigger className="w-full md:w-40 rounded-xl border-slate-200" data-testid="filter-origem">
+                <SelectTrigger className="w-full md:w-36 rounded-xl border-slate-200" data-testid="filter-origem">
                   <SelectValue placeholder="Origem" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
@@ -192,104 +352,149 @@ export default function AcidentesPage() {
                   <SelectItem value="MOBILE_CIDADAO">Cidadão</SelectItem>
                 </SelectContent>
               </Select>
-              
-              <Button variant="outline" onClick={fetchAcidentes} data-testid="refresh-btn" className="rounded-xl border-slate-200 hover:bg-slate-100 w-10 p-0">
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Table */}
-        <Card className="border-0 shadow-md shadow-slate-200/50 rounded-2xl overflow-hidden animate-slide-up stagger-3" style={{opacity: 0}}>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50/80">
-                  <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">ID</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tipo</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Gravidade</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Localização</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Vítimas</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Data</TableHead>
-                  <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12">
-                      <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-400" />
-                    </TableCell>
-                  </TableRow>
-                ) : filteredAcidentes.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12">
-                      <Car className="w-14 h-14 mx-auto text-slate-200 mb-3" />
-                      <p className="text-slate-400 font-medium">Nenhum acidente encontrado</p>
-                      <p className="text-slate-300 text-xs mt-1">Tente ajustar os filtros</p>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredAcidentes.map((acidente) => (
-                    <TableRow key={acidente.acidente_id} className="hover:bg-blue-50/30 transition-colors">
-                      <TableCell className="font-mono text-xs text-slate-500">
-                        {acidente.acidente_id?.slice(-8)}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm font-medium text-slate-700">{acidente.tipo_acidente?.replace(/_/g, ' ')}</span>
-                      </TableCell>
-                      <TableCell>{getGravidadeBadge(acidente.gravidade)}</TableCell>
-                      <TableCell>{getStatusBadge(acidente.status)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-xs text-slate-400">
-                          <MapPin className="w-3 h-3" />
-                          {acidente.latitude?.toFixed(4)}, {acidente.longitude?.toFixed(4)}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm font-semibold text-slate-700">{acidente.numero_vitimas}</TableCell>
-                      <TableCell className="text-sm text-slate-400">
-                        {new Date(acidente.created_at).toLocaleDateString('pt-AO')}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="rounded-lg hover:bg-slate-100" data-testid={`action-menu-${acidente.acidente_id}`}>
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="rounded-xl shadow-lg">
-                            <DropdownMenuItem onClick={() => navigate(`/acidentes/${acidente.acidente_id}`)} className="rounded-lg">
-                              <Eye className="w-4 h-4 mr-2" />
-                              Ver Detalhes
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => navigate(`/acidentes/${acidente.acidente_id}/editar`)} className="rounded-lg">
-                              <Edit className="w-4 h-4 mr-2" />
-                              Editar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              className="text-red-600 rounded-lg"
-                              onClick={() => handleDelete(acidente.acidente_id)}
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Remover
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <div className="space-y-4 animate-slide-up stagger-3" style={{opacity: 0}}>
 
-        {/* Summary */}
-        <div className="flex items-center justify-between text-xs text-slate-400 animate-slide-up stagger-4" style={{opacity: 0}}>
-          <span className="font-medium">Mostrando {filteredAcidentes.length} de {acidentes.length} acidentes</span>
+            {/* Table */}
+            <Card className="border-0 shadow-md shadow-slate-200/50 rounded-2xl overflow-hidden">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50/80">
+                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">ID</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tipo</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Gravidade</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Localização</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Vítimas</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider">Data</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-12">
+                          <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-400" />
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredAcidentes.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-12">
+                          <Car className="w-14 h-14 mx-auto text-slate-200 mb-3" />
+                          <p className="text-slate-400 font-medium">Nenhum acidente encontrado</p>
+                          <p className="text-slate-300 text-xs mt-1">Tente ajustar os filtros</p>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredAcidentes.map((acidente) => (
+                        <TableRow key={getId(acidente)} className="hover:bg-blue-50/30 transition-colors cursor-pointer" onClick={() => navigate(`/acidentes/${getId(acidente)}`)}>
+                          <TableCell className="font-mono text-xs text-slate-500">
+                            {getId(acidente)?.slice(-8)}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm font-medium text-slate-700">{acidente.tipo_acidente?.replace(/_/g, ' ')}</span>
+                          </TableCell>
+                          <TableCell>{getGravidadeBadge(acidente.gravidade)}</TableCell>
+                          <TableCell>{getStatusBadge(acidente.status)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1 text-xs text-slate-400">
+                              <MapPin className="w-3 h-3" />
+                              {acidente.latitude?.toFixed(4)}, {acidente.longitude?.toFixed(4)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono text-sm font-semibold text-slate-700">{acidente.numero_vitimas}</TableCell>
+                          <TableCell className="text-sm text-slate-400">
+                            {new Date(acidente.created_at).toLocaleDateString('pt-AO')}
+                          </TableCell>
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="rounded-lg hover:bg-slate-100" data-testid={`action-menu-${getId(acidente)}`}>
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="rounded-xl shadow-lg">
+                                <DropdownMenuItem onClick={() => navigate(`/acidentes/${getId(acidente)}`)} className="rounded-lg">
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  Ver Detalhes
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="text-red-600 rounded-lg"
+                                  onClick={() => confirmAndRun('Remover Acidente', `Tem certeza que deseja remover o acidente #${getId(acidente)?.slice(-6)}? Esta ação não pode ser desfeita.`, 'red', () => handleDelete(getId(acidente)))}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Remover
+                                </DropdownMenuItem>
+                                {acidente.status !== 'RESOLVIDO' && (
+                                  <>
+                                    <div className="px-2 py-1.5 border-t border-slate-100 mt-1">
+                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Alterar Status</p>
+                                    </div>
+                                    {acidente.status !== 'VALIDADO' && (
+                                      <DropdownMenuItem onClick={() => confirmAndRun('Validar Acidente', 'Confirma que deseja marcar este acidente como Validado?', 'blue', () => handleQuickStatus(getId(acidente), 'VALIDADO'))} className="rounded-lg text-blue-600">
+                                        <CheckCircle className="w-4 h-4 mr-2" /> Validar
+                                      </DropdownMenuItem>
+                                    )}
+                                    {acidente.status !== 'EM_ATENDIMENTO' && (
+                                      <DropdownMenuItem onClick={() => confirmAndRun('Em Atendimento', 'Confirma que este acidente está em atendimento?', 'orange', () => handleQuickStatus(getId(acidente), 'EM_ATENDIMENTO'))} className="rounded-lg text-orange-600">
+                                        <Activity className="w-4 h-4 mr-2" /> Em Atendimento
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem onClick={() => confirmAndRun('Resolver Acidente', 'Confirma que deseja marcar este acidente como Resolvido?', 'emerald', () => handleQuickStatus(getId(acidente), 'RESOLVIDO'))} className="rounded-lg text-emerald-600">
+                                      <CheckCircle className="w-4 h-4 mr-2" /> Resolver
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+          {/* Summary */}
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span className="font-medium">Mostrando {filteredAcidentes.length} de {acidentes.length} acidentes</span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Atualizado {lastRefresh.toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit' })} (auto 30s)
+            </span>
+          </div>
         </div>
+
+        {/* Confirmation Dialog Overlay */}
+        {confirmAction && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setConfirmAction(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 animate-slide-up" onClick={e => e.stopPropagation()}>
+              <h3 className="text-lg font-bold text-[#1B2A4A] mb-2">{confirmAction.title}</h3>
+              <p className="text-sm text-slate-500 mb-6">{confirmAction.desc}</p>
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setConfirmAction(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className={`flex-1 rounded-xl font-semibold text-white ${
+                    confirmAction.color === 'red' ? 'bg-red-600 hover:bg-red-700' :
+                    confirmAction.color === 'blue' ? 'bg-blue-600 hover:bg-blue-700' :
+                    confirmAction.color === 'orange' ? 'bg-orange-500 hover:bg-orange-600' :
+                    'bg-emerald-600 hover:bg-emerald-700'
+                  }`}
+                  onClick={runConfirmedAction}
+                >
+                  Confirmar
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

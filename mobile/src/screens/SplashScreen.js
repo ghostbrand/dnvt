@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS } from '../config';
 
@@ -58,7 +58,7 @@ export default function SplashScreen() {
           ]}
         >
           <View style={styles.logo}>
-            <Text style={styles.logoText}>🚗</Text>
+            <Image source={require('../img/Logo_DTSER.png')} style={styles.logoImage} resizeMode="contain" />
           </View>
           <Animated.View 
             style={[
@@ -68,8 +68,8 @@ export default function SplashScreen() {
           />
         </Animated.View>
         
-        <Text style={styles.title}>DNVT</Text>
-        <Text style={styles.subtitle}>Trânsito Seguro</Text>
+        <Text style={styles.title}>DTSER</Text>
+        <Text style={styles.subtitle}>Direcção de Trânsito e Segurança Rodoviária</Text>
         
         <View style={styles.loadingDots}>
           {[0, 1, 2].map((i) => (
@@ -124,7 +124,7 @@ function LoadingDot({ delay }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.purple,
+    backgroundColor: COLORS.bgDark,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -138,16 +138,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: COLORS.white,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1,
   },
-  logoText: {
-    fontSize: 40,
+  logoImage: {
+    width: 80,
+    height: 80,
   },
   ring: {
     position: 'absolute',

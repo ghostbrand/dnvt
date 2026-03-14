@@ -1,13 +1,13 @@
-// Kahoot-style color palette
+// DNVT Brand color palette — matches web frontend
 export const COLORS = {
-  // Primary vibrant colors
-  purple: '#46178F',
-  purpleLight: '#7C3AED',
+  // Primary brand — Navy Blue
+  purple: '#1B2A4A',
+  purpleLight: '#2B4075',
   pink: '#E91E63',
   pinkLight: '#F472B6',
   
   // Secondary colors
-  blue: '#1368CE',
+  blue: '#2563EB',
   blueLight: '#3B82F6',
   cyan: '#26A69A',
   cyanLight: '#5EEAD4',
@@ -24,15 +24,15 @@ export const COLORS = {
   
   // Neutral
   white: '#FFFFFF',
-  black: '#1A1A2E',
+  black: '#0F172A',
   gray: '#6B7280',
   grayLight: '#E5E7EB',
   grayDark: '#374151',
   
   // Background gradients
-  bgPrimary: '#46178F',
-  bgSecondary: '#1368CE',
-  bgDark: '#0F0F23',
+  bgPrimary: '#1B2A4A',
+  bgSecondary: '#2563EB',
+  bgDark: '#0F172A',
 };
 
 // Kahoot-style shadows and effects
@@ -71,12 +71,12 @@ export const SHADOWS = {
 export const BUTTON_STYLES = {
   primary: {
     backgroundColor: COLORS.purple,
-    borderBottomColor: '#2D0F5A',
+    borderBottomColor: '#0F172A',
     borderBottomWidth: 4,
   },
   secondary: {
     backgroundColor: COLORS.blue,
-    borderBottomColor: '#0E4A8F',
+    borderBottomColor: '#1D4ED8',
     borderBottomWidth: 4,
   },
   success: {

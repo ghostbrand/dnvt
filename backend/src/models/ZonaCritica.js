@@ -11,7 +11,10 @@ const zonaCriticaSchema = new mongoose.Schema({
   causa_mais_frequente: { type: String, default: null },
   nivel_risco: { type: String, default: 'MEDIO' },
   recomendacao_melhoria: { type: String, default: null },
+  delimitacoes: [{ lat: Number, lng: Number }],
+  tipo_zona: { type: String, enum: ['critica', 'vigilancia', 'segura'], default: 'critica' },
   validado: { type: Boolean, default: false },
+  monitores: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   created_at: { type: Date, default: Date.now }
 }, { collection: 'zonas_criticas', timestamps: false });
 

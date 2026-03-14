@@ -3,47 +3,56 @@ import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
-// Audio para alertas
+// Audio para alertas — sirene urgente prolongada
 const playAlertSound = (type = 'warning') => {
   try {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
+    const now = audioContext.currentTime;
+
     if (type === 'critical') {
-      // Som crítico - grave/fatal
-      oscillator.frequency.value = 880;
-      gainNode.gain.value = 0.3;
-      oscillator.type = 'square';
-      
-      oscillator.start();
-      setTimeout(() => {
-        oscillator.frequency.value = 660;
-      }, 150);
-      setTimeout(() => {
-        oscillator.frequency.value = 880;
-      }, 300);
-      setTimeout(() => {
-        oscillator.stop();
-        audioContext.close();
-      }, 500);
+      // Sirene de urgência prolongada (~4 segundos) — oscila entre 2 frequências
+      const duration = 4;
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      oscillator.type = 'sawtooth';
+      gainNode.gain.setValueAtTime(0.35, now);
+      gainNode.gain.linearRampToValueAtTime(0, now + duration);
+
+      // Oscilação sirene: alterna entre 880Hz e 580Hz repetidamente
+      const cycles = 8;
+      for (let i = 0; i < cycles; i++) {
+        const t = now + (i * duration / cycles);
+        oscillator.frequency.setValueAtTime(880, t);
+        oscillator.frequency.linearRampToValueAtTime(580, t + duration / cycles / 2);
+        oscillator.frequency.linearRampToValueAtTime(880, t + duration / cycles);
+      }
+
+      oscillator.start(now);
+      oscillator.stop(now + duration);
+      setTimeout(() => audioContext.close(), (duration + 0.5) * 1000);
     } else {
-      // Som de aviso normal
-      oscillator.frequency.value = 523;
-      gainNode.gain.value = 0.2;
-      oscillator.type = 'sine';
+      // Alerta normal (~1.5 segundos) — 3 beeps urgentes
+      const beepDuration = 0.15;
+      const gap = 0.2;
+      const totalBeeps = 3;
       
-      oscillator.start();
-      setTimeout(() => {
-        oscillator.frequency.value = 659;
-      }, 100);
-      setTimeout(() => {
-        oscillator.stop();
-        audioContext.close();
-      }, 200);
+      for (let i = 0; i < totalBeeps; i++) {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        osc.type = 'sine';
+        osc.frequency.value = 698;
+        gain.gain.setValueAtTime(0.25, now + i * (beepDuration + gap));
+        gain.gain.linearRampToValueAtTime(0, now + i * (beepDuration + gap) + beepDuration);
+        osc.start(now + i * (beepDuration + gap));
+        osc.stop(now + i * (beepDuration + gap) + beepDuration);
+      }
+
+      const total = totalBeeps * (beepDuration + gap);
+      setTimeout(() => audioContext.close(), (total + 0.5) * 1000);
     }
   } catch (error) {
     console.log('Audio not supported');
