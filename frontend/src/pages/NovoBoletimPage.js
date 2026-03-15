@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -27,6 +27,8 @@ import { toast } from 'sonner';
 
 export default function NovoBoletimPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const preselectedAcidenteId = searchParams.get('acidente_id') || '';
   const [loading, setLoading] = useState(false);
   const [acidentes, setAcidentes] = useState([]);
   const [loadingAcidentes, setLoadingAcidentes] = useState(true);
@@ -34,7 +36,7 @@ export default function NovoBoletimPage() {
   const [uploadFile, setUploadFile] = useState(null);
   
   const [formData, setFormData] = useState({
-    acidente_id: '',
+    acidente_id: preselectedAcidenteId,
     numero_processo: '',
     observacoes: '',
     vitimas_info: [],

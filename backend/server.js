@@ -10,6 +10,30 @@ const morgan = require('morgan');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const dns = require('dns');
+const { Expo } = require('expo-server-sdk');
+
+const expo = new Expo();
+
+async function sendPushNotification(pushToken, title, body, data = {}) {
+  if (!Expo.isExpoPushToken(pushToken)) {
+    console.log(`Invalid Expo push token: ${pushToken}`);
+    return;
+  }
+  try {
+    const [ticket] = await expo.sendPushNotificationsAsync([{
+      to: pushToken,
+      sound: 'default',
+      title,
+      body,
+      data,
+    }]);
+    if (ticket.status === 'error') {
+      console.error('Push notification error:', ticket.message);
+    }
+  } catch (err) {
+    console.error('Push notification send failed:', err.message);
+  }
+}
 
 // Configurar DNS do Google para resolver problemas de DNS
 dns.setServers(['8.8.8.8', '1.1.1.1']);
@@ -277,6 +301,8 @@ const Assistencia = require('./src/models/Assistencia');
 const ZonaCritica = require('./src/models/ZonaCritica');
 const User = require('./src/models/User');
 const AuditLog = require('./src/models/AuditLog');
+const Delegacao = require('./src/models/Delegacao');
+const Anotacao = require('./src/models/Anotacao');
 
 // ==================== AUDIT HELPER ====================
 async function logAudit({ user_id, user_name, acao, tipo, descricao, entidade_id, dados_anteriores, dados_novos, ip }) {
@@ -569,6 +595,14 @@ apiRouter.post('/acidentes/:id/confirmar-ida', async (req, res) => {
     if (!agent) return res.status(404).json({ error: 'Agente não encontrado' });
 
     const { latitude, longitude } = req.body;
+
+    // Only allow if agent has an APPROVED delegation for this accident
+    const approvedDelegacao = await Delegacao.findOne({
+      acidente_id: req.params.id, agente_id: userId, status: 'APROVADA'
+    });
+    if (!approvedDelegacao) {
+      return res.status(403).json({ error: 'Necessita de uma delegação aprovada para confirmar ida.' });
+    }
 
     const col = mongoose.connection.db.collection('agent_tracking');
     await col.updateOne(
@@ -928,12 +962,116 @@ apiRouter.patch('/zonas-criticas/:id/monitores', async (req, res) => {
 
 apiRouter.get('/zonas-criticas/calcular', async (req, res) => {
   try {
-    if (mongoose.connection.readyState === 1) {
-      const zonas = await ZonaCritica.find();
-      return res.json({ message: 'Cálculo concluído', zonas });
+    if (mongoose.connection.readyState !== 1) return res.json({ message: 'DB indisponível', zonas: [] });
+
+    const RADIUS_KM = parseFloat(req.query.raio_km) || 0.5; // default 500m
+    const MIN_ACCIDENTS = parseInt(req.query.min_acidentes) || 2; // minimum to be critical
+
+    const acidentes = await Acidente.find().lean();
+    if (acidentes.length === 0) return res.json({ message: 'Sem acidentes', zonas: [] });
+
+    // Cluster accidents by proximity
+    const used = new Set();
+    const clusters = [];
+
+    for (let i = 0; i < acidentes.length; i++) {
+      if (used.has(i)) continue;
+      const a = acidentes[i];
+      if (!a.latitude || !a.longitude) continue;
+      const cluster = [a];
+      used.add(i);
+
+      for (let j = i + 1; j < acidentes.length; j++) {
+        if (used.has(j)) continue;
+        const b = acidentes[j];
+        if (!b.latitude || !b.longitude) continue;
+        const dLat = (a.latitude - b.latitude) * 111.32;
+        const dLng = (a.longitude - b.longitude) * 111.32 * Math.cos(a.latitude * Math.PI / 180);
+        const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+        if (dist <= RADIUS_KM) {
+          cluster.push(b);
+          used.add(j);
+        }
+      }
+      clusters.push(cluster);
     }
-  } catch (err) { console.error('DB error /zonas-criticas/calcular:', err.message); }
-  res.json({ message: 'Cálculo concluído', zonas: [] });
+
+    // Filter clusters that meet minimum threshold
+    const criticalClusters = clusters.filter(c => c.length >= MIN_ACCIDENTS);
+
+    // Create/update zones from clusters
+    let created = 0, updated = 0;
+    const zonaIds = [];
+
+    for (const cluster of criticalClusters) {
+      const latCenter = cluster.reduce((s, a) => s + a.latitude, 0) / cluster.length;
+      const lngCenter = cluster.reduce((s, a) => s + a.longitude, 0) / cluster.length;
+      const totalAcidentes = cluster.length;
+      const graves = cluster.filter(a => ['GRAVE', 'FATAL'].includes(a.gravidade)).length;
+
+      // Classify risk level
+      let nivelRisco = 'BAIXO';
+      if (totalAcidentes >= 5 || graves >= 2) nivelRisco = 'CRITICO';
+      else if (totalAcidentes >= 3 || graves >= 1) nivelRisco = 'ALTO';
+      else if (totalAcidentes >= 2) nivelRisco = 'MEDIO';
+
+      let tipoZona = 'vigilancia';
+      if (nivelRisco === 'CRITICO' || nivelRisco === 'ALTO') tipoZona = 'critica';
+
+      // Find most frequent cause
+      const causas = {};
+      cluster.forEach(a => { if (a.causa_principal) causas[a.causa_principal] = (causas[a.causa_principal] || 0) + 1; });
+      const causaMaisFrequente = Object.entries(causas).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+      // Check if a zone already exists near this center
+      const existingZone = await ZonaCritica.findOne({
+        latitude_centro: { $gte: latCenter - 0.005, $lte: latCenter + 0.005 },
+        longitude_centro: { $gte: lngCenter - 0.005, $lte: lngCenter + 0.005 }
+      });
+
+      if (existingZone) {
+        await ZonaCritica.findByIdAndUpdate(existingZone._id, {
+          total_acidentes: totalAcidentes,
+          acidentes_graves: graves,
+          nivel_risco: nivelRisco,
+          tipo_zona: tipoZona,
+          causa_mais_frequente: causaMaisFrequente,
+          raio_metros: RADIUS_KM * 1000
+        });
+        zonaIds.push(existingZone._id);
+        updated++;
+      } else {
+        const zona = await ZonaCritica.create({
+          zona_id: `ZC-AUTO-${Date.now()}-${created}`,
+          latitude_centro: Math.round(latCenter * 1000000) / 1000000,
+          longitude_centro: Math.round(lngCenter * 1000000) / 1000000,
+          raio_metros: RADIUS_KM * 1000,
+          nome: `Zona Crítica Auto (${totalAcidentes} acidentes)`,
+          total_acidentes: totalAcidentes,
+          acidentes_graves: graves,
+          causa_mais_frequente: causaMaisFrequente,
+          nivel_risco: nivelRisco,
+          tipo_zona: tipoZona,
+          validado: false,
+          recomendacao_melhoria: graves > 0
+            ? 'Zona com acidentes graves recorrentes. Recomenda-se intervenção urgente.'
+            : 'Zona com acidentes recorrentes. Monitorizar e avaliar medidas preventivas.'
+        });
+        zonaIds.push(zona._id);
+        created++;
+      }
+    }
+
+    const zonas = await ZonaCritica.find();
+    return res.json({
+      message: `Cálculo concluído: ${created} novas zonas, ${updated} atualizadas, ${criticalClusters.length} clusters encontrados`,
+      zonas,
+      stats: { total_acidentes: acidentes.length, clusters: criticalClusters.length, created, updated }
+    });
+  } catch (err) {
+    console.error('DB error /zonas-criticas/calcular:', err.message);
+    res.json({ message: 'Erro no cálculo', zonas: [] });
+  }
 });
 
 // ==================== BOLETINS ENDPOINTS ====================
@@ -1268,6 +1406,307 @@ async function sendExpoPush(pushTokens, title, body) {
     });
   } catch (e) { console.error('Expo push error:', e.message); }
 }
+
+// ==================== DELEGAÇÕES (MISSION DELEGATION) ====================
+
+// List delegations for an accident
+apiRouter.get('/delegacoes', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.json([]);
+    const query = {};
+    if (req.query.acidente_id) query.acidente_id = req.query.acidente_id;
+    if (req.query.agente_id) query.agente_id = req.query.agente_id;
+    if (req.query.status) query.status = req.query.status;
+    if (req.query.tipo) query.tipo = req.query.tipo;
+    const delegacoes = await Delegacao.find(query).sort({ created_at: -1 }).limit(200);
+    return res.json(delegacoes);
+  } catch (err) { console.error('DB error /delegacoes:', err.message); res.json([]); }
+});
+
+// Get pending agent requests (for admin alerts)
+apiRouter.get('/delegacoes/pedidos-pendentes', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.json([]);
+    const pedidos = await Delegacao.find({ tipo: 'SOLICITACAO_AGENTE', status: 'PENDENTE' }).sort({ created_at: -1 });
+    return res.json(pedidos);
+  } catch (err) { console.error('DB error /delegacoes/pedidos-pendentes:', err.message); res.json([]); }
+});
+
+// Get delegation status for an agent on an accident
+apiRouter.get('/delegacoes/minha', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.json(null);
+    const { acidente_id, agente_id } = req.query;
+    if (!acidente_id || !agente_id) return res.json(null);
+    const delegacao = await Delegacao.findOne({
+      acidente_id, agente_id,
+      status: { $in: ['PENDENTE', 'APROVADA'] }
+    }).sort({ created_at: -1 });
+    return res.json(delegacao);
+  } catch (err) { console.error('DB error /delegacoes/minha:', err.message); res.json(null); }
+});
+
+// Admin delegates mission to agent
+apiRouter.post('/delegacoes', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.status(500).json({ error: 'DB indisponível' });
+    const { acidente_id, agente_id, agente_nome, agente_telefone, delegado_por, delegado_por_nome, distancia_km, latitude_agente, longitude_agente } = req.body;
+    if (!acidente_id || !agente_id) return res.status(400).json({ error: 'acidente_id e agente_id são obrigatórios' });
+
+    // Check if already delegated
+    const existing = await Delegacao.findOne({ acidente_id, agente_id, status: { $in: ['PENDENTE', 'APROVADA'] } });
+    if (existing) return res.status(400).json({ error: 'Este agente já tem uma delegação ativa para este acidente' });
+
+    const delegacao = await Delegacao.create({
+      acidente_id, agente_id, agente_nome: agente_nome || '',
+      agente_telefone: agente_telefone || '',
+      delegado_por: delegado_por || '', delegado_por_nome: delegado_por_nome || '',
+      tipo: 'DELEGACAO_ADMIN', status: 'APROVADA', aprovada_em: new Date(),
+      distancia_km: distancia_km || null,
+      latitude_agente: latitude_agente || null, longitude_agente: longitude_agente || null
+    });
+
+    // Send push notification to agent
+    try {
+      const agentUser = await User.findById(agente_id);
+      if (agentUser?.push_token) {
+        const acidente = await Acidente.findOne({ $or: [{ _id: acidente_id }, { acidente_id: acidente_id }] });
+        await sendPushNotification(
+          agentUser.push_token,
+          'Missão Delegada',
+          `Foi-lhe delegada uma missão: ${acidente?.tipo_acidente?.replace(/_/g, ' ') || 'Acidente'} — ${acidente?.gravidade || ''}. Abra a aplicação para ver os detalhes e dirigir-se ao local.`,
+          { type: 'DELEGACAO', acidente_id, delegacao_id: delegacao._id.toString() }
+        );
+      }
+      // Store notification in DB
+      await mongoose.connection.db.collection('notificacoes').insertOne({
+        destinatario_id: agente_id,
+        titulo: 'Missão Delegada',
+        mensagem: `Foi-lhe delegada uma missão para o acidente. Dirija-se ao local.`,
+        tipo: 'delegacao',
+        acidente_id,
+        lida: false,
+        created_at: new Date()
+      });
+    } catch (notifErr) { console.error('Notification error:', notifErr.message); }
+
+    // Send SMS if agent has phone
+    if (agente_telefone) {
+      console.log(`[SMS] Missão delegada para ${agente_nome} (${agente_telefone}): Acidente ${acidente_id}. Aceda à aplicação DTSER para ver detalhes.`);
+    }
+
+    return res.status(201).json(delegacao);
+  } catch (err) { console.error('DB error POST /delegacoes:', err.message); res.status(500).json({ error: err.message }); }
+});
+
+// Agent requests mission (solicitar delegação)
+apiRouter.post('/delegacoes/solicitar', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.status(500).json({ error: 'DB indisponível' });
+    const { acidente_id, agente_id, agente_nome, agente_telefone, latitude_agente, longitude_agente } = req.body;
+    if (!acidente_id || !agente_id) return res.status(400).json({ error: 'acidente_id e agente_id são obrigatórios' });
+
+    // Check existing
+    const existing = await Delegacao.findOne({ acidente_id, agente_id, status: { $in: ['PENDENTE', 'APROVADA'] } });
+    if (existing) return res.status(400).json({ error: 'Já tem um pedido pendente ou missão ativa para este acidente' });
+
+    // Calculate distance
+    let distancia_km = null;
+    if (latitude_agente && longitude_agente) {
+      const acidente = await Acidente.findOne({ $or: [{ _id: acidente_id }, { acidente_id: acidente_id }] });
+      if (acidente?.latitude && acidente?.longitude) {
+        const dLat = (latitude_agente - acidente.latitude) * 111.32;
+        const dLng = (longitude_agente - acidente.longitude) * 111.32 * Math.cos(acidente.latitude * Math.PI / 180);
+        distancia_km = Math.round(Math.sqrt(dLat * dLat + dLng * dLng) * 10) / 10;
+      }
+    }
+
+    const delegacao = await Delegacao.create({
+      acidente_id, agente_id, agente_nome: agente_nome || '',
+      agente_telefone: agente_telefone || '',
+      tipo: 'SOLICITACAO_AGENTE', status: 'PENDENTE',
+      distancia_km,
+      latitude_agente: latitude_agente || null, longitude_agente: longitude_agente || null
+    });
+
+    // Notify admins about the request
+    const admins = await User.find({ role: 'admin', status: 'ativo' });
+    const now = new Date();
+    for (const admin of admins) {
+      if (admin.push_token) {
+        await sendPushNotification(
+          admin.push_token,
+          'Pedido de Missão',
+          `${agente_nome || 'Um agente'} solicita delegação para um acidente${distancia_km ? ` (${distancia_km} km)` : ''}.`,
+          { type: 'PEDIDO_MISSAO', acidente_id, delegacao_id: delegacao._id.toString() }
+        );
+      }
+      await mongoose.connection.db.collection('notificacoes').insertOne({
+        destinatario_id: admin._id.toString(),
+        titulo: 'Pedido de Missão',
+        mensagem: `${agente_nome || 'Um agente'} solicita delegação para um acidente.`,
+        tipo: 'pedido_missao',
+        acidente_id,
+        lida: false,
+        created_at: now
+      });
+      // SMS to admin
+      if (admin.telefone) {
+        console.log(`[SMS] Pedido de missão de ${agente_nome || 'agente'} (${agente_telefone || 'sem tel'}) para acidente ${acidente_id}. Aprove na plataforma DTSER.`);
+      }
+    }
+
+    return res.status(201).json(delegacao);
+  } catch (err) { console.error('DB error POST /delegacoes/solicitar:', err.message); res.status(500).json({ error: err.message }); }
+});
+
+// Admin approves agent request
+apiRouter.patch('/delegacoes/:id/aprovar', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.status(500).json({ error: 'DB indisponível' });
+    const delegacao = await Delegacao.findByIdAndUpdate(req.params.id, {
+      status: 'APROVADA', aprovada_em: new Date(), updated_at: new Date(),
+      delegado_por: req.body.delegado_por || '', delegado_por_nome: req.body.delegado_por_nome || ''
+    }, { new: true });
+    if (!delegacao) return res.status(404).json({ error: 'Delegação não encontrada' });
+
+    // Notify agent
+    try {
+      const agentUser = await User.findById(delegacao.agente_id);
+      if (agentUser?.push_token) {
+        await sendPushNotification(
+          agentUser.push_token,
+          'Missão Aprovada',
+          'O seu pedido de missão foi aprovado. Dirija-se ao local do acidente.',
+          { type: 'DELEGACAO_APROVADA', acidente_id: delegacao.acidente_id, delegacao_id: delegacao._id.toString() }
+        );
+      }
+      await mongoose.connection.db.collection('notificacoes').insertOne({
+        destinatario_id: delegacao.agente_id,
+        titulo: 'Missão Aprovada',
+        mensagem: 'O seu pedido de missão foi aprovado. Dirija-se ao local.',
+        tipo: 'delegacao',
+        acidente_id: delegacao.acidente_id,
+        lida: false,
+        created_at: new Date()
+      });
+    } catch (notifErr) { console.error('Notification error:', notifErr.message); }
+
+    if (delegacao.agente_telefone) {
+      console.log(`[SMS] Missão aprovada para ${delegacao.agente_nome} (${delegacao.agente_telefone}). Dirija-se ao local.`);
+    }
+
+    return res.json(delegacao);
+  } catch (err) { console.error('DB error PATCH /delegacoes/:id/aprovar:', err.message); res.status(500).json({ error: err.message }); }
+});
+
+// Admin rejects agent request
+apiRouter.patch('/delegacoes/:id/rejeitar', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.status(500).json({ error: 'DB indisponível' });
+    const delegacao = await Delegacao.findByIdAndUpdate(req.params.id, {
+      status: 'REJEITADA', updated_at: new Date(),
+      motivo_rejeicao: req.body.motivo || ''
+    }, { new: true });
+    if (!delegacao) return res.status(404).json({ error: 'Delegação não encontrada' });
+
+    // Notify agent
+    try {
+      const agentUser = await User.findById(delegacao.agente_id);
+      if (agentUser?.push_token) {
+        await sendPushNotification(
+          agentUser.push_token,
+          'Pedido de Missão Rejeitado',
+          req.body.motivo ? `Motivo: ${req.body.motivo}` : 'O seu pedido de missão foi rejeitado.',
+          { type: 'DELEGACAO_REJEITADA', acidente_id: delegacao.acidente_id }
+        );
+      }
+      await mongoose.connection.db.collection('notificacoes').insertOne({
+        destinatario_id: delegacao.agente_id,
+        titulo: 'Pedido de Missão Rejeitado',
+        mensagem: req.body.motivo || 'O seu pedido de missão foi rejeitado.',
+        tipo: 'delegacao',
+        acidente_id: delegacao.acidente_id,
+        lida: false,
+        created_at: new Date()
+      });
+    } catch (notifErr) { console.error('Notification error:', notifErr.message); }
+
+    // SMS to agent on rejection
+    if (delegacao.agente_telefone) {
+      console.log(`[SMS] Pedido de missão rejeitado para ${delegacao.agente_nome} (${delegacao.agente_telefone}). ${req.body.motivo ? 'Motivo: ' + req.body.motivo : 'Contacte a base para mais informações.'}`);
+    }
+
+    return res.json(delegacao);
+  } catch (err) { console.error('DB error PATCH /delegacoes/:id/rejeitar:', err.message); res.status(500).json({ error: err.message }); }
+});
+
+// Get active agents with locations (for admin map)
+apiRouter.get('/agentes/ativos-localizacao', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.json([]);
+    // Get agents who have recently updated their location (via agentes_a_caminho collection)
+    const agents = await User.find({ role: { $in: ['policia', 'admin'] }, status: 'ativo' }).select('-password');
+    // Enrich with last known location from agentes_a_caminho
+    const locData = await mongoose.connection.db.collection('agentes_a_caminho').find({
+      updated_at: { $gte: new Date(Date.now() - 3600000) } // last hour
+    }).toArray();
+    const locMap = {};
+    locData.forEach(l => { locMap[l.agente_id] = l; });
+
+    const result = agents.map(a => ({
+      _id: a._id, name: a.name, email: a.email, telefone: a.telefone,
+      role: a.role, provincia: a.provincia,
+      latitude: locMap[a._id.toString()]?.latitude || null,
+      longitude: locMap[a._id.toString()]?.longitude || null,
+      last_seen: locMap[a._id.toString()]?.updated_at || null
+    }));
+    return res.json(result);
+  } catch (err) { console.error('DB error /agentes/ativos-localizacao:', err.message); res.json([]); }
+});
+
+// ==================== ANOTAÇÕES (ACCIDENT ANNOTATIONS) ====================
+
+// List annotations for an accident
+apiRouter.get('/anotacoes', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.json([]);
+    const query = {};
+    if (req.query.acidente_id) query.acidente_id = req.query.acidente_id;
+    const anotacoes = await Anotacao.find(query).sort({ created_at: -1 });
+    return res.json(anotacoes);
+  } catch (err) { console.error('DB error /anotacoes:', err.message); res.json([]); }
+});
+
+// Create annotation (text and/or photos)
+apiRouter.post('/anotacoes', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.status(500).json({ error: 'DB indisponível' });
+    const { acidente_id, agente_id, agente_nome, texto, fotos } = req.body;
+    if (!acidente_id || !agente_id) return res.status(400).json({ error: 'acidente_id e agente_id são obrigatórios' });
+    if (!texto && (!fotos || fotos.length === 0)) return res.status(400).json({ error: 'Texto ou foto são obrigatórios' });
+
+    let tipo = 'TEXTO';
+    if (texto && fotos && fotos.length > 0) tipo = 'TEXTO_FOTO';
+    else if (fotos && fotos.length > 0) tipo = 'FOTO';
+
+    const anotacao = await Anotacao.create({
+      acidente_id, agente_id, agente_nome: agente_nome || '', tipo, texto: texto || '', fotos: fotos || []
+    });
+    return res.status(201).json(anotacao);
+  } catch (err) { console.error('DB error POST /anotacoes:', err.message); res.status(500).json({ error: err.message }); }
+});
+
+// Upload annotation photo (base64 → stored as data URI for simplicity)
+apiRouter.post('/anotacoes/upload-foto', async (req, res) => {
+  try {
+    const { base64, filename } = req.body;
+    if (!base64) return res.status(400).json({ error: 'base64 é obrigatório' });
+    // Store as data URI — in production use cloud storage
+    const dataUri = base64.startsWith('data:') ? base64 : `data:image/jpeg;base64,${base64}`;
+    return res.json({ url: dataUri, filename: filename || `foto_${Date.now()}.jpg` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // ==================== NOTIFICATION ENDPOINTS ====================
 apiRouter.post('/notificacoes/enviar', async (req, res) => {

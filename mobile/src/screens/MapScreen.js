@@ -89,11 +89,17 @@ export default function MapScreen({ navigation }) {
 
   const getZoneColor = (nivel) => {
     const colors = {
+      'CRITICO': 'rgba(220, 38, 38, 0.35)',
       'ALTO': 'rgba(229, 57, 53, 0.3)',
       'MEDIO': 'rgba(255, 152, 0, 0.3)',
       'BAIXO': 'rgba(76, 175, 80, 0.3)',
     };
     return colors[nivel] || 'rgba(107, 114, 128, 0.3)';
+  };
+
+  const getZoneStrokeColor = (nivel) => {
+    const colors = { 'CRITICO': '#991B1B', 'ALTO': COLORS.red, 'MEDIO': COLORS.orange, 'BAIXO': COLORS.green };
+    return colors[nivel] || COLORS.gray;
   };
 
   // Default to Luanda if no location
@@ -132,24 +138,24 @@ export default function MapScreen({ navigation }) {
           showsMyLocationButton
         >
           {/* Critical Zones */}
-          {zones.map(zone => (
+          {zones.map((zone, idx) => (
             <Circle
-              key={zone.zona_id}
+              key={zone.zona_id || zone._id || `zone-${idx}`}
               center={{
                 latitude: zone.latitude_centro,
                 longitude: zone.longitude_centro,
               }}
               radius={zone.raio_metros}
               fillColor={getZoneColor(zone.nivel_risco)}
-              strokeColor={zone.nivel_risco === 'ALTO' ? COLORS.red : COLORS.orange}
+              strokeColor={getZoneStrokeColor(zone.nivel_risco)}
               strokeWidth={2}
             />
           ))}
 
           {/* Accident Markers */}
-          {accidents.map(accident => (
+          {accidents.map((accident, idx) => (
             <Marker
-              key={accident.acidente_id}
+              key={accident.acidente_id || accident._id || `acc-${idx}`}
               coordinate={{
                 latitude: accident.latitude,
                 longitude: accident.longitude,
@@ -220,7 +226,7 @@ export default function MapScreen({ navigation }) {
             
             <View style={styles.detailStats}>
               <View style={styles.detailStat}>
-                <Text style={styles.detailStatValue}>{selectedAccident.numero_veiculos}</Text>
+                <Text style={styles.detailStatValue}>{selectedAccident.numero_veiculos || 'N/D'}</Text>
                 <Text style={styles.detailStatLabel}>Veículos</Text>
               </View>
               <View style={styles.detailStat}>

@@ -58,7 +58,7 @@ export default function AcidentesPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterGravidade, setFilterGravidade] = useState('all');
   const [filterOrigem, setFilterOrigem] = useState('all');
-  const [filterExtra, setFilterExtra] = useState('all'); // all | com_assist | sem_assist | com_boletim | sem_boletim
+  const [filterExtra, setFilterExtra] = useState('ativos'); // ativos | all | com_boletim | sem_boletim
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const pollRef = useRef(null);
   const [confirmAction, setConfirmAction] = useState(null); // { title, desc, color, action }
@@ -113,7 +113,6 @@ export default function AcidentesPage() {
   const getId = (a) => a._id || a.acidente_id;
 
   // Build cross-reference sets
-  const acidentesComAssist = new Set(allAssistencias.map(a => a.acidente_id));
   const acidentesComBoletim = new Set(allBoletins.map(b => b.acidente_id));
 
   // Stats
@@ -126,8 +125,6 @@ export default function AcidentesPage() {
       return d.toDateString() === now.toDateString();
     }).length,
     graves: acidentes.filter(a => a.gravidade === 'GRAVE' || a.gravidade === 'FATAL').length,
-    comAssist: acidentes.filter(a => acidentesComAssist.has(getId(a))).length,
-    semAssist: acidentes.filter(a => !acidentesComAssist.has(getId(a))).length,
     comBoletim: acidentes.filter(a => acidentesComBoletim.has(getId(a))).length,
     semBoletim: acidentes.filter(a => !acidentesComBoletim.has(getId(a))).length,
   };
@@ -154,11 +151,10 @@ export default function AcidentesPage() {
     const matchesGravidade = filterGravidade === 'all' || a.gravidade === filterGravidade;
     // Origem filter
     const matchesOrigem = filterOrigem === 'all' || a.origem_registro === filterOrigem;
-    // Extra filter (assistência / boletim)
+    // Extra filter (ativos / boletim)
     let matchesExtra = true;
     const aid = getId(a);
-    if (filterExtra === 'com_assist') matchesExtra = acidentesComAssist.has(aid);
-    else if (filterExtra === 'sem_assist') matchesExtra = !acidentesComAssist.has(aid);
+    if (filterExtra === 'ativos') matchesExtra = ['REPORTADO', 'VALIDADO', 'EM_ATENDIMENTO'].includes(a.status);
     else if (filterExtra === 'com_boletim') matchesExtra = acidentesComBoletim.has(aid);
     else if (filterExtra === 'sem_boletim') matchesExtra = !acidentesComBoletim.has(aid);
     
@@ -195,12 +191,11 @@ export default function AcidentesPage() {
     return <Badge className={styles[gravidade]}>{gravidade}</Badge>;
   };
 
-  // Floating pill menu items — Sem Assistência first
+  // Floating pill menu items — Ativos first as priority
   const PILL_FILTERS = [
+    { value: 'ativos', label: 'Ativos', count: stats.ativos },
     { value: 'all', label: 'Todos', count: stats.total },
-    { value: 'sem_assist', label: 'Sem Assistência', count: stats.semAssist },
     { value: 'sem_boletim', label: 'Sem Boletim', count: stats.semBoletim },
-    { value: 'com_assist', label: 'Com Assistência', count: stats.comAssist },
     { value: 'com_boletim', label: 'Com Boletim', count: stats.comBoletim },
   ];
 

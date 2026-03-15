@@ -42,15 +42,15 @@ const EMPTY_ZONA_FORM = {
   longitude_centro: '',
   raio_metros: '500',
   nivel_risco: 'MEDIO',
-  tipo_zona: 'critica',
   recomendacao_melhoria: ''
 };
 
-const ZONA_TYPES = [
-  { value: 'all', label: 'Todas', color: 'bg-slate-100 text-slate-700' },
-  { value: 'critica', label: 'Críticas', color: 'bg-red-100 text-red-700' },
-  { value: 'vigilancia', label: 'Vigilância', color: 'bg-amber-100 text-amber-700' },
-  { value: 'segura', label: 'Seguras', color: 'bg-emerald-100 text-emerald-700' },
+const RISK_FILTERS = [
+  { value: 'all', label: 'Todas' },
+  { value: 'CRITICO', label: 'Crítico' },
+  { value: 'ALTO', label: 'Alto' },
+  { value: 'MEDIO', label: 'Médio' },
+  { value: 'BAIXO', label: 'Baixo' },
 ];
 
 export default function ZonasCriticasPage() {
@@ -67,8 +67,8 @@ export default function ZonasCriticasPage() {
   const [editingZona, setEditingZona] = useState(null);
   const [savingZona, setSavingZona] = useState(false);
   
-  // Category filter
-  const [filterTipo, setFilterTipo] = useState('all');
+  // Risk level filter
+  const [filterRisco, setFilterRisco] = useState('all');
 
   // Map for drawing
   const mapContainerRef = useRef(null);
@@ -203,8 +203,8 @@ export default function ZonasCriticasPage() {
     }
   };
 
-  // Zone type colors for map polygons
-  const ZONA_COLORS = { critica: '#E53935', vigilancia: '#FF9800', segura: '#4CAF50' };
+  // Risk level colors for map polygons
+  const ZONA_COLORS = { CRITICO: '#B71C1C', ALTO: '#E53935', MEDIO: '#FF9800', BAIXO: '#4CAF50' };
 
   // Clear drawn overlays from map
   const clearDrawnOverlays = useCallback(() => {
@@ -360,8 +360,7 @@ export default function ZonasCriticasPage() {
       const bounds = new window.google.maps.LatLngBounds();
       let hasExisting = false;
       zonas.forEach(z => {
-        const tipo = z.tipo_zona || 'critica';
-        const color = ZONA_COLORS[tipo] || '#888';
+        const color = ZONA_COLORS[z.nivel_risco] || '#888';
         if (z.delimitacoes && z.delimitacoes.length >= 3) {
           new window.google.maps.Polygon({
             paths: z.delimitacoes,
@@ -433,9 +432,7 @@ export default function ZonasCriticasPage() {
     let hasZones = false;
 
     zonas.forEach(z => {
-      const tipo = z.tipo_zona || 'critica';
-      const color = ZONA_COLORS[tipo] || '#888';
-      const label = `${z.nome}\n${tipo.charAt(0).toUpperCase() + tipo.slice(1)} — ${z.nivel_risco}`;
+      const color = ZONA_COLORS[z.nivel_risco] || '#888';
 
       if (z.delimitacoes && z.delimitacoes.length >= 3) {
         const polygon = new window.google.maps.Polygon({
@@ -450,7 +447,7 @@ export default function ZonasCriticasPage() {
         const infoWindow = new window.google.maps.InfoWindow({
           content: `<div style="font-family:Inter,sans-serif;padding:4px;">
             <strong style="color:${color};font-size:14px;">${z.nome}</strong><br/>
-            <span style="font-size:12px;color:#64748b;">Tipo: ${tipo} · Risco: ${z.nivel_risco}</span><br/>
+            <span style="font-size:12px;color:#64748b;">Risco: ${z.nivel_risco}</span><br/>
             ${z.recomendacao_melhoria ? `<span style="font-size:11px;color:#94a3b8;">${z.recomendacao_melhoria}</span>` : ''}
           </div>`,
           position: polyBounds.getCenter()
@@ -474,7 +471,7 @@ export default function ZonasCriticasPage() {
         const infoWindow = new window.google.maps.InfoWindow({
           content: `<div style="font-family:Inter,sans-serif;padding:4px;">
             <strong style="color:${color};font-size:14px;">${z.nome}</strong><br/>
-            <span style="font-size:12px;color:#64748b;">Tipo: ${tipo} · Risco: ${z.nivel_risco} · Raio: ${z.raio_metros || 500}m</span>
+            <span style="font-size:12px;color:#64748b;">Risco: ${z.nivel_risco} · Raio: ${z.raio_metros || 500}m</span>
           </div>`
         });
         marker.addListener('click', () => infoWindow.open(map, marker));
@@ -486,10 +483,10 @@ export default function ZonasCriticasPage() {
     if (hasZones) map.fitBounds(bounds, 50);
   }, [apiKey, zonas]);
 
-  // Filtered zones
-  const filteredZonas = filterTipo === 'all'
+  // Filtered zones by risk level
+  const filteredZonas = filterRisco === 'all'
     ? zonas
-    : zonas.filter(z => (z.tipo_zona || 'critica') === filterTipo);
+    : zonas.filter(z => z.nivel_risco === filterRisco);
 
   // === Zone CRUD ===
   const openCreateDialog = () => {
@@ -510,7 +507,6 @@ export default function ZonasCriticasPage() {
       longitude_centro: String(zona.longitude_centro),
       raio_metros: String(zona.raio_metros),
       nivel_risco: zona.nivel_risco || 'MEDIO',
-      tipo_zona: zona.tipo_zona || 'critica',
       recomendacao_melhoria: zona.recomendacao_melhoria || ''
     });
     const pts = zona.delimitacoes || [];
@@ -531,7 +527,6 @@ export default function ZonasCriticasPage() {
       longitude_centro: parseFloat(zonaForm.longitude_centro),
       raio_metros: parseInt(zonaForm.raio_metros) || 500,
       nivel_risco: zonaForm.nivel_risco,
-      tipo_zona: zonaForm.tipo_zona || 'critica',
       recomendacao_melhoria: zonaForm.recomendacao_melhoria.trim() || null,
       delimitacoes: drawingPoints.length > 2 ? drawingPoints : undefined
     };
@@ -642,18 +637,18 @@ export default function ZonasCriticasPage() {
         <div className="bg-gradient-to-r from-[#0f1c36] via-[#162848] to-[#1a3058] shadow-lg shadow-[#1B2A4A]/10">
           <div className="px-4 lg:px-6">
             <div className="flex items-center gap-0.5 overflow-x-auto scrollbar-hide">
-              {ZONA_TYPES.map(t => {
-                const count = t.value === 'all' ? zonas.length : zonas.filter(z => (z.tipo_zona || 'critica') === t.value).length;
-                const active = filterTipo === t.value;
+              {RISK_FILTERS.map(f => {
+                const count = f.value === 'all' ? zonas.length : zonas.filter(z => z.nivel_risco === f.value).length;
+                const active = filterRisco === f.value;
                 return (
                   <button
-                    key={t.value}
-                    onClick={() => setFilterTipo(t.value)}
+                    key={f.value}
+                    onClick={() => setFilterRisco(f.value)}
                     className={`relative flex items-center gap-2 px-4 lg:px-5 py-3.5 text-[12px] lg:text-[13px] font-semibold whitespace-nowrap transition-all duration-300 flex-shrink-0 group ${
                       active ? 'text-white' : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    <span>{t.label}</span>
+                    <span>{f.label}</span>
                     <span className={`min-w-[22px] h-[22px] px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center transition-all duration-300 ${
                       active ? 'bg-white/20 text-white' : 'bg-white/8 text-slate-400 group-hover:bg-white/12 group-hover:text-slate-300'
                     }`}>
@@ -808,7 +803,7 @@ export default function ZonasCriticasPage() {
             ) : filteredZonas.length === 0 ? (
               <div className="text-center py-12 text-slate-300">
                 <MapPin className="w-14 h-14 mx-auto mb-3 opacity-30" />
-                <p className="font-medium text-slate-400">{filterTipo === 'all' ? 'Nenhuma zona monitorada registada' : 'Nenhuma zona nesta categoria'}</p>
+                <p className="font-medium text-slate-400">{filterRisco === 'all' ? 'Nenhuma zona monitorada registada' : 'Nenhuma zona nesta categoria'}</p>
                 <p className="text-xs text-slate-300 mt-1">Clique em "Nova Zona" para adicionar uma zona de monitoramento</p>
                 {isAdmin && (
                   <Button onClick={openCreateDialog} className="mt-4 rounded-xl text-sm" style={{ background: 'linear-gradient(135deg, #1B2A4A 0%, #2B4075 100%)' }}>
@@ -1102,7 +1097,7 @@ export default function ZonasCriticasPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs font-semibold text-slate-500 mb-1.5 block">Raio (metros)</Label>
                   <Input
@@ -1120,22 +1115,10 @@ export default function ZonasCriticasPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="CRITICO">Crítico</SelectItem>
                       <SelectItem value="ALTO">Alto</SelectItem>
                       <SelectItem value="MEDIO">Médio</SelectItem>
                       <SelectItem value="BAIXO">Baixo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs font-semibold text-slate-500 mb-1.5 block">Tipo de Zona</Label>
-                  <Select value={zonaForm.tipo_zona} onValueChange={v => setZonaForm(p => ({ ...p, tipo_zona: v }))}>
-                    <SelectTrigger className="rounded-xl border-slate-200 text-sm h-10">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="critica">Crítica</SelectItem>
-                      <SelectItem value="vigilancia">Vigilância</SelectItem>
-                      <SelectItem value="segura">Segura</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

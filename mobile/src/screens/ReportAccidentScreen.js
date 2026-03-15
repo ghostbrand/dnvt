@@ -122,7 +122,7 @@ export default function ReportAccidentScreen({ navigation }) {
         descricao: 'Reporte rápido - necessita assistência urgente',
         latitude: location.latitude,
         longitude: location.longitude,
-        numero_veiculos: 1,
+        numero_veiculos: 0,
         numero_vitimas: 0,
         origem_registro: 'MOBILE_CIDADAO',
       }, token);

@@ -47,7 +47,7 @@ import {
 } from 'lucide-react';
 import logoDnvt from '../img/Logo_DTSER.png';
 import logoGov from '../img/logo-g.png';
-import { notificacoesApi } from '../services/api';
+import { notificacoesApi, delegacoesApi } from '../services/api';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -88,8 +88,14 @@ export default function Layout({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifSubOpen, setNotifSubOpen] = useState(false);
+  const [pendingMissions, setPendingMissions] = useState(0);
+  const prevPendingRef = useRef(0);
   const notifRef = useRef(null);
   const unreadCount = notifications.filter(n => !n.lida).length;
+
+  const displayName = user?.nome || user?.name || 'Utilizador';
+  const displayRole = user?.tipo || user?.role || '';
+  const isAdmin = user?.tipo?.toUpperCase() === 'ADMIN' || user?.role?.toLowerCase() === 'admin';
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 1024);
@@ -131,6 +137,42 @@ export default function Layout({ children }) {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch pending mission requests (admin only) + play sound on new requests
+  useEffect(() => {
+    if (!isAdmin) return;
+    const playMissionSound = () => {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        // Two-tone chime — distinct from accident alert
+        [660, 880].forEach((freq, i) => {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = 'sine';
+          o.frequency.value = freq;
+          g.gain.setValueAtTime(0.3, ctx.currentTime + i * 0.2);
+          g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i * 0.2 + 0.4);
+          o.connect(g).connect(ctx.destination);
+          o.start(ctx.currentTime + i * 0.2);
+          o.stop(ctx.currentTime + i * 0.2 + 0.4);
+        });
+      } catch (_) {}
+    };
+    const fetchPending = async () => {
+      try {
+        const pedidos = await delegacoesApi.pedidosPendentes();
+        const count = Array.isArray(pedidos) ? pedidos.length : 0;
+        if (count > prevPendingRef.current && prevPendingRef.current >= 0) {
+          playMissionSound();
+        }
+        prevPendingRef.current = count;
+        setPendingMissions(count);
+      } catch (_) {}
+    };
+    fetchPending();
+    const interval = setInterval(fetchPending, 15000);
+    return () => clearInterval(interval);
+  }, [isAdmin]);
+
   // Close notification panel on outside click
   useEffect(() => {
     const handleClick = (e) => {
@@ -163,10 +205,6 @@ export default function Layout({ children }) {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
-
-  const displayName = user?.nome || user?.name || 'Utilizador';
-  const displayRole = user?.tipo || user?.role || '';
-  const isAdmin = user?.tipo?.toUpperCase() === 'ADMIN' || user?.role?.toLowerCase() === 'admin';
 
   // On mobile: sidebar is off-screen, no content margin needed (handled by lg: prefix)
   // On desktop: main content uses collapsed width; sidebar overlays on hover
@@ -467,6 +505,18 @@ export default function Layout({ children }) {
             </div>
 
             <div className="flex items-center gap-1.5">
+              {/* Pending mission requests indicator */}
+              {pendingMissions > 0 && (
+                <Link
+                  to="/acidentes"
+                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 transition-colors border border-amber-200/60"
+                  title="Pedidos de missão pendentes"
+                >
+                  <Send className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                  <span className="text-[11px] font-bold text-amber-700">{pendingMissions}</span>
+                </Link>
+              )}
+
               {/* Active accidents indicator */}
               {activeAlertsCount > 0 && (
                 <Link

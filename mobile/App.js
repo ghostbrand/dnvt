@@ -71,9 +71,14 @@ function RootNavigator() {
         },
         // On notification tapped
         (response) => {
-          // Navigate to Notifications screen
+          const data = response?.notification?.request?.content?.data;
           if (navigationRef.current) {
-            navigationRef.current.navigate('Notifications');
+            // Navigate to AccidentDetail for delegation-related notifications
+            if (data?.acidente_id && ['DELEGACAO', 'DELEGACAO_APROVADA', 'DELEGACAO_REJEITADA'].includes(data?.type)) {
+              navigationRef.current.navigate('AccidentDetail', { accidentId: data.acidente_id });
+            } else {
+              navigationRef.current.navigate('Notifications');
+            }
           }
         }
       );

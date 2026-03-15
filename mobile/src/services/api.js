@@ -113,6 +113,25 @@ export const api = {
     body: JSON.stringify(data)
   }, token),
 
+  // Delegações (Mission Delegation)
+  getMinhaDelegacao: (acidenteId, agenteId, token) => fetchWithAuth(`/delegacoes/minha?acidente_id=${acidenteId}&agente_id=${agenteId}`, {}, token),
+  solicitarMissao: (data, token) => fetchWithAuth('/delegacoes/solicitar', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }, token),
+  getDelegacoes: (acidenteId, token) => fetchWithAuth(`/delegacoes?acidente_id=${acidenteId}`, {}, token),
+
+  // Anotações (Accident Annotations)
+  getAnotacoes: (acidenteId, token) => fetchWithAuth(`/anotacoes?acidente_id=${acidenteId}`, {}, token),
+  createAnotacao: (data, token) => fetchWithAuth('/anotacoes', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }, token),
+  uploadFotoAnotacao: (data, token) => fetchWithAuth('/anotacoes/upload-foto', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }, token),
+
   // Estatisticas
   getEstatisticas: () => fetchWithAuth('/estatisticas/resumo'),
 

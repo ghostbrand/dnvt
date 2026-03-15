@@ -55,7 +55,13 @@
           "icon": "./assets/notification-icon.png",
           "color": "#0F172A"
         }
-      ]
-    ]
+      ],
+      "expo-audio"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
+    }
   }
 }

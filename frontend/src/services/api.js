@@ -384,6 +384,70 @@ export const notificacoesApi = {
   }
 };
 
+// Delegações (Mission Delegation)
+export const delegacoesApi = {
+  list: async (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    const res = await fetch(`${API}/delegacoes?${query}`, { headers: getHeaders() });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  pedidosPendentes: async () => {
+    const res = await fetch(`${API}/delegacoes/pedidos-pendentes`, { headers: getHeaders() });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  create: async (data) => {
+    const res = await fetch(`${API}/delegacoes`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Erro ao delegar missão');
+    }
+    return res.json();
+  },
+
+  aprovar: async (id, data = {}) => {
+    const res = await fetch(`${API}/delegacoes/${id}/aprovar`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Erro ao aprovar delegação');
+    return res.json();
+  },
+
+  rejeitar: async (id, data = {}) => {
+    const res = await fetch(`${API}/delegacoes/${id}/rejeitar`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Erro ao rejeitar delegação');
+    return res.json();
+  },
+
+  agentesAtivos: async () => {
+    const res = await fetch(`${API}/agentes/ativos-localizacao`, { headers: getHeaders() });
+    if (!res.ok) return [];
+    return res.json();
+  }
+};
+
+// Anotações
+export const anotacoesApi = {
+  list: async (acidenteId) => {
+    const res = await fetch(`${API}/anotacoes?acidente_id=${acidenteId}`, { headers: getHeaders() });
+    if (!res.ok) return [];
+    return res.json();
+  }
+};
+
 // Histórico / Audit Log
 export const historicoApi = {
   list: async (params = {}) => {

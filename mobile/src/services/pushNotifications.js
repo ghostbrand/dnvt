@@ -1,18 +1,35 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { api } from './api';
 
+// Detect if running inside Expo Go (push not supported on Android since SDK 53)
+const isExpoGo = Constants.appOwnership === 'expo';
+const pushUnsupported = isExpoGo && Platform.OS === 'android';
+
 // Configure how notifications appear when app is in foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// Skip on Android Expo Go to avoid the ERROR
+if (!pushUnsupported) {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+  } catch (e) {
+    console.log('Notification handler setup skipped:', e.message);
+  }
+}
 
 export async function registerForPushNotifications(token) {
+  if (pushUnsupported) {
+    console.log('Push notifications not supported in Expo Go on Android. Use a development build.');
+    return null;
+  }
+
   try {
     if (!Device.isDevice) {
       console.log('Push notifications require a physical device');
@@ -45,7 +62,10 @@ export async function registerForPushNotifications(token) {
     }
 
     // Get Expo push token with timeout
-    const tokenPromise = Notifications.getExpoPushTokenAsync();
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    const tokenPromise = Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Push token timeout')), 8000)
     );
@@ -69,6 +89,11 @@ export async function registerForPushNotifications(token) {
 }
 
 export function addNotificationListeners(onReceived, onTapped) {
+  if (pushUnsupported) {
+    // Return no-op cleanup on Android Expo Go
+    return () => {};
+  }
+
   const receivedSub = Notifications.addNotificationReceivedListener(onReceived);
   const tappedSub = Notifications.addNotificationResponseReceivedListener(onTapped);
 

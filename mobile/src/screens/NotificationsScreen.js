@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
-  RefreshControl, Modal, Animated, Dimensions 
+  RefreshControl, Modal, Animated, Dimensions, Platform, Vibration 
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
 import { COLORS, SPACING, FONTS, RADIUS } from '../config';
 import { Ionicons } from '@expo/vector-icons';
+import { useAudioPlayer } from 'expo-audio';
 
+const NOTIF_SOUND_URI = 'https://cdn.pixabay.com/audio/2022/12/12/audio_e8b6834cce.mp3';
 const { height } = Dimensions.get('window');
 
 export default function NotificationsScreen({ navigation }) {
@@ -18,16 +20,44 @@ export default function NotificationsScreen({ navigation }) {
   const [selectedNotif, setSelectedNotif] = useState(null);
   const [sheetVisible, setSheetVisible] = useState(false);
   const slideAnim = useState(new Animated.Value(height))[0];
+  const prevUnreadRef = useRef(-1);
 
-  const loadNotifs = useCallback(async () => {
+  const player = useAudioPlayer(NOTIF_SOUND_URI);
+
+  const playNotifSound = useCallback(() => {
+    try {
+      if (player) {
+        player.seekTo(0);
+        player.play();
+      }
+    } catch (_) {
+      // Fallback vibration if sound fails
+      if (Platform.OS !== 'web') Vibration.vibrate(300);
+    }
+  }, [player]);
+
+  const loadNotifs = useCallback(async (silent = false) => {
     try {
       const data = await api.getNotificacoes(token);
-      if (Array.isArray(data)) setNotifs(data);
+      if (Array.isArray(data)) {
+        const newUnread = data.filter(n => !n.lida).length;
+        if (prevUnreadRef.current >= 0 && newUnread > prevUnreadRef.current) {
+          playNotifSound();
+        }
+        prevUnreadRef.current = newUnread;
+        setNotifs(data);
+      }
     } catch (_) {}
-    setLoading(false);
-  }, [token]);
+    if (!silent) setLoading(false);
+  }, [token, playNotifSound]);
 
   useEffect(() => { loadNotifs(); }, [loadNotifs]);
+
+  // Auto-refresh every 15 seconds
+  useEffect(() => {
+    const interval = setInterval(() => loadNotifs(true), 15000);
+    return () => clearInterval(interval);
+  }, [loadNotifs]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -149,6 +179,19 @@ export default function NotificationsScreen({ navigation }) {
                   </Text>
                   <View style={styles.sheetDivider} />
                   <Text style={styles.sheetMessage}>{selectedNotif.mensagem}</Text>
+                  {selectedNotif.acidente_id && ['delegacao', 'pedido_missao'].includes(selectedNotif.tipo) && (
+                    <TouchableOpacity
+                      style={styles.sheetActionBtn}
+                      onPress={() => {
+                        closeSheet();
+                        navigation.navigate('AccidentDetail', { accidentId: selectedNotif.acidente_id });
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="navigate-circle" size={20} color="#fff" />
+                      <Text style={styles.sheetActionText}>Ver Acidente</Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={styles.sheetFooter}>
                     <Text style={styles.sheetFooterText}>Central DTSER · Notificação</Text>
                   </View>
@@ -207,6 +250,11 @@ const styles = StyleSheet.create({
   sheetDate: { fontSize: 12, color: '#94a3b8', marginBottom: 12 },
   sheetDivider: { height: 1, backgroundColor: '#e2e8f0', marginBottom: 16 },
   sheetMessage: { fontSize: 15, color: '#334155', lineHeight: 22 },
+  sheetActionBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#2563EB', borderRadius: 12, paddingVertical: 12, marginTop: 16,
+  },
+  sheetActionText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   sheetFooter: { marginTop: 24, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
   sheetFooterText: { fontSize: 11, color: '#94a3b8', textAlign: 'center' },
 });

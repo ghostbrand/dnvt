@@ -14,6 +14,7 @@ import NovoAcidentePage from './pages/NovoAcidentePage';
 import AcidenteDetalhesPage from './pages/AcidenteDetalhesPage';
 import BoletinsPage from './pages/BoletinsPage';
 import NovoBoletimPage from './pages/NovoBoletimPage';
+import BoletimDetalhesPage from './pages/BoletimDetalhesPage';
 import ZonasCriticasPage from './pages/ZonasCriticasPage';
 import AssistenciasPage from './pages/AssistenciasPage';
 import EstatisticasPage from './pages/EstatisticasPage';
@@ -90,6 +91,10 @@ function AppRouter() {
       
       <Route path="/boletins/novo" element={
         <ProtectedRoute><NovoBoletimPage /></ProtectedRoute>
+      } />
+      
+      <Route path="/boletins/:id" element={
+        <ProtectedRoute><BoletimDetalhesPage /></ProtectedRoute>
       } />
       
       <Route path="/zonas-criticas" element={

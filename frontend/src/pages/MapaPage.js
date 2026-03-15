@@ -682,7 +682,7 @@ export default function MapaPage() {
                     className="flex-1"
                     asChild
                   >
-                    <a href={`/acidentes/${selectedAccident.acidente_id}`}>
+                    <a href={`/acidentes/${selectedAccident.acidente_id || selectedAccident._id}`}>
                       Ver Detalhes
                     </a>
                   </Button>

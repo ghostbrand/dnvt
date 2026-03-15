@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput, Dimensions, Platform, Linking
+  ActivityIndicator, Alert, TextInput, Dimensions, Platform, Linking,
+  Modal, Image, KeyboardAvoidingView
 } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
 import { COLORS, SPACING, FONTS, RADIUS, SHADOWS } from '../config';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useToast } from '../components/Toast';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ARRIVAL_RADIUS_METERS = 100;
 
 export default function AccidentDetailScreen({ route, navigation }) {
@@ -24,20 +26,30 @@ export default function AccidentDetailScreen({ route, navigation }) {
   const [eta, setEta] = useState(null);
   const [distance, setDistance] = useState(null);
   const [arrived, setArrived] = useState(false);
-  const [showBoletim, setShowBoletim] = useState(false);
-  const [boletimData, setBoletimData] = useState({
-    observacoes: '',
-    numero_processo: '',
-  });
-  const [savingBoletim, setSavingBoletim] = useState(false);
   const [trackingLocation, setTrackingLocation] = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+  // Delegation state
+  const [missionStatus, setMissionStatus] = useState(null); // null, 'PENDENTE', 'APROVADA', 'REJEITADA'
+  const [requestingMission, setRequestingMission] = useState(false);
+
+  // Expandable map
+  const [mapExpanded, setMapExpanded] = useState(false);
+
+  // Annotations
+  const [annotations, setAnnotations] = useState([]);
+  const [newAnnotation, setNewAnnotation] = useState('');
+  const [annotationPhotos, setAnnotationPhotos] = useState([]);
+  const [savingAnnotation, setSavingAnnotation] = useState(false);
+  const [showAnnotationForm, setShowAnnotationForm] = useState(false);
 
   const toast = useToast();
   const mapRef = useRef(null);
+  const expandedMapRef = useRef(null);
   const locationSubRef = useRef(null);
   const locationIntervalRef = useRef(null);
+
+  const isAgent = user?.role === 'policia' || user?.role === 'admin' || user?.tipo === 'policia';
+  const acidenteId = accident?._id || accident?.acidente_id || accidentId;
 
   useEffect(() => {
     loadAccident();
@@ -54,27 +66,22 @@ export default function AccidentDetailScreen({ route, navigation }) {
     };
   }, []);
 
-  // Show confirmation dialog once accident is loaded
+  // Check delegation status once accident and user are loaded
   useEffect(() => {
-    if (accident && !confirmed && !showConfirmDialog) {
-      setShowConfirmDialog(true);
-      Alert.alert(
-        'Confirmar Deslocação',
-        `Deseja confirmar que está a ir para o local deste acidente?\n\n${(accident.tipo_acidente || 'Acidente').replace(/_/g, ' ')} — ${accident.gravidade}`,
-        [
-          { text: 'Não, apenas ver', style: 'cancel', onPress: () => setShowConfirmDialog(false) },
-          { text: 'Sim, estou a ir', style: 'default', onPress: () => handleConfirmIda() }
-        ]
-      );
+    if (accident && isAgent && user) {
+      checkDelegationStatus();
+      loadAnnotations();
     }
   }, [accident]);
 
   useEffect(() => {
-    if (userLocation && accident && !arrived) {
+    if (userLocation && accident && !arrived && missionStatus === 'APROVADA') {
       checkArrival();
       fetchRoute();
+    } else if (userLocation && accident) {
+      fetchRoute();
     }
-  }, [userLocation, accident]);
+  }, [userLocation, accident, missionStatus]);
 
   const loadAccident = async () => {
     try {
@@ -102,11 +109,34 @@ export default function AccidentDetailScreen({ route, navigation }) {
     }
   };
 
-  const handleConfirmIda = async () => {
-    setConfirmed(true);
-    setShowConfirmDialog(false);
+  const checkDelegationStatus = async () => {
     try {
-      // Get current position for the confirmation
+      const agentId = user?.id || user?._id;
+      if (!agentId) return;
+      const delegacao = await api.getMinhaDelegacao(acidenteId, agentId, token);
+      if (delegacao) {
+        setMissionStatus(delegacao.status);
+        if (delegacao.status === 'APROVADA') {
+          startLocationTracking();
+        }
+      }
+    } catch (err) {
+      console.error('Delegation check error:', err);
+    }
+  };
+
+  const loadAnnotations = async () => {
+    try {
+      const data = await api.getAnotacoes(acidenteId, token);
+      setAnnotations(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Annotations load error:', err);
+    }
+  };
+
+  const handleSolicitarMissao = async () => {
+    setRequestingMission(true);
+    try {
       let lat = userLocation?.latitude;
       let lng = userLocation?.longitude;
       if (!lat) {
@@ -118,15 +148,32 @@ export default function AccidentDetailScreen({ route, navigation }) {
         } catch (_) {}
       }
 
-      // Confirm with backend
-      await api.confirmarIda(accidentId, { latitude: lat, longitude: lng }, token);
+      await api.solicitarMissao({
+        acidente_id: acidenteId,
+        agente_id: user?.id || user?._id,
+        agente_nome: user?.nome || user?.name || '',
+        agente_telefone: user?.telefone || '',
+        latitude_agente: lat,
+        longitude_agente: lng
+      }, token);
 
-      // Start continuous location tracking
+      setMissionStatus('PENDENTE');
+      toast.success('Pedido Enviado', 'O seu pedido de missão foi enviado à base. Aguarde aprovação.');
+    } catch (err) {
+      const msg = err?.message || err?.error || 'Erro ao solicitar missão.';
+      toast.error('Erro', msg);
+    } finally {
+      setRequestingMission(false);
+    }
+  };
+
+  const startLocationTracking = async () => {
+    try {
+      if (locationSubRef.current) return; // already tracking
       const sub = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.High, distanceInterval: 15, timeInterval: 5000 },
         (loc) => {
-          const newLoc = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-          setUserLocation(newLoc);
+          setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
         }
       );
       locationSubRef.current = sub;
@@ -142,10 +189,8 @@ export default function AccidentDetailScreen({ route, navigation }) {
           }, token);
         } catch (_) {}
       }, 10000);
-
     } catch (err) {
-      console.error('Confirm error:', err);
-      toast.error('Erro', 'Não foi possível registar a confirmação.');
+      console.error('Location tracking error:', err);
     }
   };
 
@@ -157,61 +202,42 @@ export default function AccidentDetailScreen({ route, navigation }) {
 
     if (dist <= ARRIVAL_RADIUS_METERS && !arrived) {
       setArrived(true);
+      api.updateAgentLocation(accidentId, {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        status: 'CHEGOU'
+      }, token).catch(() => {});
 
-      // Notify backend that agent arrived
-      if (confirmed) {
-        api.updateAgentLocation(accidentId, {
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude,
-          status: 'CHEGOU'
-        }, token).catch(() => {});
-
-        // Stop the location broadcast interval
-        if (locationIntervalRef.current) {
-          clearInterval(locationIntervalRef.current);
-          locationIntervalRef.current = null;
-        }
+      if (locationIntervalRef.current) {
+        clearInterval(locationIntervalRef.current);
+        locationIntervalRef.current = null;
       }
-
       toast.success('Chegou ao Local', 'Você chegou ao local do acidente.');
-      setTimeout(() => setShowBoletim(true), 1500);
     }
   };
 
   const fetchRoute = async () => {
     if (!userLocation || !accident) return;
-
     try {
-      // Use Google Directions API or OSRM for route
       const origin = `${userLocation.longitude},${userLocation.latitude}`;
       const dest = `${accident.longitude},${accident.latitude}`;
-
       const res = await fetch(
         `https://router.project-osrm.org/route/v1/driving/${origin};${dest}?overview=full&geometries=geojson`
       );
       const data = await res.json();
-
       if (data.routes && data.routes.length > 0) {
         const route = data.routes[0];
-        const coords = route.geometry.coordinates.map(c => ({
-          latitude: c[1],
-          longitude: c[0]
-        }));
+        const coords = route.geometry.coordinates.map(c => ({ latitude: c[1], longitude: c[0] }));
         setRouteCoords(coords);
-
-        // Duration in seconds, distance in meters
-        const durationMin = Math.ceil(route.duration / 60);
-        const distKm = (route.distance / 1000).toFixed(1);
-        setEta(durationMin);
-        setDistance(distKm);
+        setEta(Math.ceil(route.duration / 60));
+        setDistance((route.distance / 1000).toFixed(1));
       }
     } catch (err) {
-      // Fallback: straight-line distance
       const dLat = (userLocation.latitude - accident.latitude) * 111320;
       const dLng = (userLocation.longitude - accident.longitude) * 111320 * Math.cos(accident.latitude * Math.PI / 180);
       const distM = Math.sqrt(dLat * dLat + dLng * dLng);
       setDistance((distM / 1000).toFixed(1));
-      setEta(Math.ceil(distM / 500)); // rough ~30km/h estimate
+      setEta(Math.ceil(distM / 500));
     }
   };
 
@@ -226,40 +252,101 @@ export default function AccidentDetailScreen({ route, navigation }) {
     });
   };
 
-  const handleCreateBoletim = async () => {
-    if (!boletimData.observacoes.trim()) {
-      toast.warning('Campos obrigatórios', 'As observações são obrigatórias.');
-      return;
-    }
-    setSavingBoletim(true);
-    try {
-      await api.createBoletim({
-        acidente_id: accident._id || accident.acidente_id,
-        numero_processo: boletimData.numero_processo || `BOL-${Date.now()}`,
-        observacoes: boletimData.observacoes,
-        modo_criacao: 'MOBILE_AGENTE',
-        created_by: user?.id || user?._id || user?.email,
-        vitimas_info: [],
-        veiculos_info: [],
-        testemunhas: [],
-      }, token);
-      toast.success('Sucesso', 'Boletim de ocorrência registado com sucesso!');
-      setShowBoletim(false);
-      setBoletimData({ observacoes: '', numero_processo: '' });
-    } catch (err) {
-      toast.error('Erro', err.message || 'Erro ao criar boletim.');
-    } finally {
-      setSavingBoletim(false);
-    }
-  };
-
   const handleUpdateStatus = async (newStatus) => {
     try {
-      await api.updateAcidente(accident._id || accident.acidente_id, { status: newStatus }, token);
+      await api.updateAcidente(acidenteId, { status: newStatus }, token);
       setAccident(prev => ({ ...prev, status: newStatus }));
       toast.success('Sucesso', `Status atualizado para ${newStatus.replace(/_/g, ' ')}`);
     } catch (err) {
       toast.error('Erro', 'Não foi possível atualizar o status.');
+    }
+  };
+
+  // Annotations
+  const pickPhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        toast.warning('Permissão', 'Permissão de câmera é necessária.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.6,
+        base64: true,
+        allowsEditing: false,
+      });
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        setAnnotationPhotos(prev => [...prev, {
+          uri: asset.uri,
+          base64: asset.base64
+        }]);
+      }
+    } catch (err) {
+      toast.error('Erro', 'Não foi possível capturar a foto.');
+    }
+  };
+
+  const pickFromGallery = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        toast.warning('Permissão', 'Permissão de galeria é necessária.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.6,
+        base64: true,
+        allowsMultipleSelection: true,
+      });
+      if (!result.canceled && result.assets?.length > 0) {
+        const newPhotos = result.assets.map(a => ({ uri: a.uri, base64: a.base64 }));
+        setAnnotationPhotos(prev => [...prev, ...newPhotos]);
+      }
+    } catch (err) {
+      toast.error('Erro', 'Não foi possível selecionar a foto.');
+    }
+  };
+
+  const removePhoto = (idx) => {
+    setAnnotationPhotos(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSaveAnnotation = async () => {
+    if (!newAnnotation.trim() && annotationPhotos.length === 0) {
+      toast.warning('Atenção', 'Adicione um texto ou pelo menos uma foto.');
+      return;
+    }
+    setSavingAnnotation(true);
+    try {
+      // Upload photos first
+      const uploadedUrls = [];
+      for (const photo of annotationPhotos) {
+        if (photo.base64) {
+          const resp = await api.uploadFotoAnotacao({ base64: photo.base64 }, token);
+          if (resp?.url) uploadedUrls.push(resp.url);
+        }
+      }
+
+      await api.createAnotacao({
+        acidente_id: acidenteId,
+        agente_id: user?.id || user?._id,
+        agente_nome: user?.nome || user?.name || '',
+        texto: newAnnotation.trim(),
+        fotos: uploadedUrls
+      }, token);
+
+      toast.success('Sucesso', 'Anotação registada com sucesso.');
+      setNewAnnotation('');
+      setAnnotationPhotos([]);
+      setShowAnnotationForm(false);
+      loadAnnotations();
+    } catch (err) {
+      toast.error('Erro', err?.message || 'Erro ao salvar anotação.');
+    } finally {
+      setSavingAnnotation(false);
     }
   };
 
@@ -272,6 +359,23 @@ export default function AccidentDetailScreen({ route, navigation }) {
     const map = { REPORTADO: '#EAB308', VALIDADO: '#3B82F6', EM_ATENDIMENTO: '#F97316', RESOLVIDO: '#22C55E' };
     return map[s] || COLORS.gray;
   };
+
+  // Map content (shared between inline and expanded)
+  const renderMapContent = () => (
+    <>
+      <Marker
+        coordinate={{ latitude: accident.latitude, longitude: accident.longitude }}
+        title="Local do Acidente"
+      >
+        <View style={[styles.marker, { backgroundColor: getGravidadeColor(accident.gravidade) }]}>
+          <Ionicons name="car" size={18} color={COLORS.white} />
+        </View>
+      </Marker>
+      {routeCoords.length > 0 && (
+        <Polyline coordinates={routeCoords} strokeColor={COLORS.blue} strokeWidth={4} />
+      )}
+    </>
+  );
 
   if (loading) {
     return (
@@ -315,7 +419,7 @@ export default function AccidentDetailScreen({ route, navigation }) {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Map with route */}
+        {/* Inline Map */}
         <View style={styles.mapContainer}>
           <MapView
             ref={mapRef}
@@ -328,24 +432,7 @@ export default function AccidentDetailScreen({ route, navigation }) {
             }}
             showsUserLocation
           >
-            {/* Accident marker */}
-            <Marker
-              coordinate={{ latitude: accident.latitude, longitude: accident.longitude }}
-              title="Local do Acidente"
-            >
-              <View style={[styles.marker, { backgroundColor: getGravidadeColor(accident.gravidade) }]}>
-                <Ionicons name="car" size={18} color={COLORS.white} />
-              </View>
-            </Marker>
-
-            {/* Route line */}
-            {routeCoords.length > 0 && (
-              <Polyline
-                coordinates={routeCoords}
-                strokeColor={COLORS.blue}
-                strokeWidth={4}
-              />
-            )}
+            {renderMapContent()}
           </MapView>
 
           {/* ETA overlay */}
@@ -356,6 +443,15 @@ export default function AccidentDetailScreen({ route, navigation }) {
               <Text style={styles.etaDistText}>{distance} km</Text>
             </View>
           )}
+
+          {/* Expand button */}
+          <TouchableOpacity
+            style={styles.expandButton}
+            onPress={() => setMapExpanded(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="expand" size={18} color={COLORS.white} />
+          </TouchableOpacity>
 
           {/* Navigate button */}
           <TouchableOpacity style={styles.navButton} onPress={openInMaps} activeOpacity={0.8}>
@@ -372,7 +468,7 @@ export default function AccidentDetailScreen({ route, navigation }) {
           )}
         </View>
 
-        {/* Status + actions */}
+        {/* Status + tracking badges */}
         <View style={styles.statusRow}>
           <View style={[styles.statusBadge, { borderColor: getStatusColor(accident.status) }]}>
             <View style={[styles.statusDot, { backgroundColor: getStatusColor(accident.status) }]} />
@@ -381,10 +477,16 @@ export default function AccidentDetailScreen({ route, navigation }) {
             </Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            {confirmed && !arrived && (
+            {missionStatus === 'APROVADA' && !arrived && (
               <View style={[styles.trackingBadge, { backgroundColor: 'rgba(37,99,235,0.15)' }]}>
                 <Ionicons name="navigate" size={12} color={COLORS.blue} />
-                <Text style={[styles.trackingText, { color: COLORS.blue }]}>A caminho</Text>
+                <Text style={[styles.trackingText, { color: COLORS.blue }]}>Missão ativa</Text>
+              </View>
+            )}
+            {missionStatus === 'PENDENTE' && (
+              <View style={[styles.trackingBadge, { backgroundColor: 'rgba(234,179,8,0.15)' }]}>
+                <Ionicons name="time" size={12} color="#EAB308" />
+                <Text style={[styles.trackingText, { color: '#EAB308' }]}>Aguardando</Text>
               </View>
             )}
             {trackingLocation && (
@@ -396,55 +498,79 @@ export default function AccidentDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Confirm button if agent hasn't confirmed yet */}
-        {!confirmed && !arrived && (
+        {/* Solicitar Missão — only for agents without active delegation */}
+        {isAgent && !missionStatus && accident.status !== 'RESOLVIDO' && (
           <TouchableOpacity
-            style={styles.confirmBtn}
-            onPress={handleConfirmIda}
+            style={[styles.solicitarBtn, requestingMission && { opacity: 0.7 }]}
+            onPress={handleSolicitarMissao}
+            disabled={requestingMission}
             activeOpacity={0.8}
           >
-            <Ionicons name="navigate-circle" size={22} color={COLORS.white} />
-            <Text style={styles.confirmBtnText}>Confirmar que estou a ir para o local</Text>
+            {requestingMission ? (
+              <ActivityIndicator color={COLORS.white} size="small" />
+            ) : (
+              <>
+                <Ionicons name="hand-left" size={20} color={COLORS.white} />
+                <Text style={styles.solicitarBtnText}>Solicitar Missão</Text>
+              </>
+            )}
           </TouchableOpacity>
         )}
 
-        {/* Quick status actions for agent */}
-        <View style={styles.actionRow}>
-          {accident.status === 'REPORTADO' && (
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: COLORS.blue }]}
-              onPress={() => handleUpdateStatus('VALIDADO')}
-            >
-              <Ionicons name="checkmark-circle" size={18} color={COLORS.white} />
-              <Text style={styles.actionBtnText}>Validar</Text>
-            </TouchableOpacity>
-          )}
-          {['REPORTADO', 'VALIDADO'].includes(accident.status) && (
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: COLORS.orange }]}
-              onPress={() => handleUpdateStatus('EM_ATENDIMENTO')}
-            >
-              <Ionicons name="car" size={18} color={COLORS.white} />
-              <Text style={styles.actionBtnText}>Em Atendimento</Text>
-            </TouchableOpacity>
-          )}
-          {accident.status === 'EM_ATENDIMENTO' && (
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: COLORS.green }]}
-              onPress={() => handleUpdateStatus('RESOLVIDO')}
-            >
-              <Ionicons name="checkmark-done" size={18} color={COLORS.white} />
-              <Text style={styles.actionBtnText}>Resolver</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: COLORS.purple }]}
-            onPress={() => setShowBoletim(true)}
-          >
-            <Ionicons name="document-text" size={18} color={COLORS.white} />
-            <Text style={styles.actionBtnText}>Boletim</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Pending mission info */}
+        {missionStatus === 'PENDENTE' && (
+          <View style={styles.pendingCard}>
+            <Ionicons name="hourglass" size={24} color="#EAB308" />
+            <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+              <Text style={styles.pendingTitle}>Pedido em análise</Text>
+              <Text style={styles.pendingDesc}>A base está a analisar o seu pedido de missão. Será notificado quando for aprovado ou rejeitado.</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Rejected mission info */}
+        {missionStatus === 'REJEITADA' && (
+          <View style={[styles.pendingCard, { borderColor: '#FCA5A5' }]}>
+            <Ionicons name="close-circle" size={24} color={COLORS.red} />
+            <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+              <Text style={[styles.pendingTitle, { color: COLORS.red }]}>Pedido rejeitado</Text>
+              <Text style={styles.pendingDesc}>O seu pedido de missão foi rejeitado pela base.</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Quick status actions for delegated agent */}
+        {isAgent && missionStatus === 'APROVADA' && (
+          <View style={styles.actionRow}>
+            {accident.status === 'REPORTADO' && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: COLORS.blue }]}
+                onPress={() => handleUpdateStatus('VALIDADO')}
+              >
+                <Ionicons name="checkmark-circle" size={18} color={COLORS.white} />
+                <Text style={styles.actionBtnText}>Validar</Text>
+              </TouchableOpacity>
+            )}
+            {['REPORTADO', 'VALIDADO'].includes(accident.status) && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: COLORS.orange }]}
+                onPress={() => handleUpdateStatus('EM_ATENDIMENTO')}
+              >
+                <Ionicons name="car" size={18} color={COLORS.white} />
+                <Text style={styles.actionBtnText}>Em Atendimento</Text>
+              </TouchableOpacity>
+            )}
+            {accident.status === 'EM_ATENDIMENTO' && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: COLORS.green }]}
+                onPress={() => handleUpdateStatus('RESOLVIDO')}
+              >
+                <Ionicons name="checkmark-done" size={18} color={COLORS.white} />
+                <Text style={styles.actionBtnText}>Resolver</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {/* Accident info */}
         <View style={styles.infoCard}>
@@ -455,7 +581,7 @@ export default function AccidentDetailScreen({ route, navigation }) {
           <View style={styles.infoGrid}>
             <View style={styles.infoItem}>
               <Ionicons name="car-outline" size={20} color={COLORS.blue} />
-              <Text style={styles.infoValue}>{accident.numero_veiculos || 0}</Text>
+              <Text style={styles.infoValue}>{accident.numero_veiculos || 'N/D'}</Text>
               <Text style={styles.infoLabel}>Veículos</Text>
             </View>
             <View style={styles.infoItem}>
@@ -488,57 +614,145 @@ export default function AccidentDetailScreen({ route, navigation }) {
           ) : null}
         </View>
 
-        {/* Boletim form */}
-        {showBoletim && (
-          <View style={styles.boletimCard}>
-            <View style={styles.boletimHeader}>
-              <Text style={styles.boletimTitle}>Registar Boletim de Ocorrência</Text>
-              <TouchableOpacity onPress={() => setShowBoletim(false)}>
-                <Ionicons name="close-circle" size={24} color={COLORS.gray} />
+        {/* Annotations section — agents only */}
+        {isAgent && (
+          <View style={styles.annotationCard}>
+            <View style={styles.annotationHeader}>
+              <Text style={styles.infoTitle}>Anotações ({annotations.length})</Text>
+              <TouchableOpacity
+                style={styles.addAnnotationBtn}
+                onPress={() => setShowAnnotationForm(!showAnnotationForm)}
+              >
+                <Ionicons name={showAnnotationForm ? 'close' : 'add'} size={20} color={COLORS.white} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.fieldLabel}>Número do Processo</Text>
-            <TextInput
-              style={styles.input}
-              value={boletimData.numero_processo}
-              onChangeText={t => setBoletimData(d => ({ ...d, numero_processo: t }))}
-              placeholder="Ex: BOL-2026-001"
-              placeholderTextColor={COLORS.gray}
-            />
+            {/* Annotation form */}
+            {showAnnotationForm && (
+              <View style={styles.annotationForm}>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={newAnnotation}
+                  onChangeText={setNewAnnotation}
+                  placeholder="Escreva a sua anotação..."
+                  placeholderTextColor={COLORS.gray}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
 
-            <Text style={styles.fieldLabel}>Observações *</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={boletimData.observacoes}
-              onChangeText={t => setBoletimData(d => ({ ...d, observacoes: t }))}
-              placeholder="Descreva a situação encontrada no local..."
-              placeholderTextColor={COLORS.gray}
-              multiline
-              numberOfLines={5}
-              textAlignVertical="top"
-            />
+                {/* Photo previews */}
+                {annotationPhotos.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoRow}>
+                    {annotationPhotos.map((photo, idx) => (
+                      <View key={idx} style={styles.photoPreview}>
+                        <Image source={{ uri: photo.uri }} style={styles.photoThumb} />
+                        <TouchableOpacity style={styles.photoRemove} onPress={() => removePhoto(idx)}>
+                          <Ionicons name="close-circle" size={20} color={COLORS.red} />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
 
-            <TouchableOpacity
-              style={[styles.submitBtn, savingBoletim && { opacity: 0.7 }]}
-              onPress={handleCreateBoletim}
-              disabled={savingBoletim}
-              activeOpacity={0.8}
-            >
-              {savingBoletim ? (
-                <ActivityIndicator color={COLORS.white} size="small" />
-              ) : (
-                <>
-                  <Ionicons name="document-text" size={18} color={COLORS.white} />
-                  <Text style={styles.submitBtnText}>Registar Boletim</Text>
-                </>
-              )}
-            </TouchableOpacity>
+                <View style={styles.annotationActions}>
+                  <TouchableOpacity style={styles.photoBtnSmall} onPress={pickPhoto}>
+                    <Ionicons name="camera" size={20} color={COLORS.blue} />
+                    <Text style={styles.photoBtnText}>Câmera</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.photoBtnSmall} onPress={pickFromGallery}>
+                    <Ionicons name="images" size={20} color={COLORS.purple} />
+                    <Text style={styles.photoBtnText}>Galeria</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.saveAnnotationBtn, savingAnnotation && { opacity: 0.7 }]}
+                    onPress={handleSaveAnnotation}
+                    disabled={savingAnnotation}
+                  >
+                    {savingAnnotation ? (
+                      <ActivityIndicator color={COLORS.white} size="small" />
+                    ) : (
+                      <>
+                        <Ionicons name="send" size={16} color={COLORS.white} />
+                        <Text style={styles.saveAnnotationText}>Enviar</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Existing annotations */}
+            {annotations.length === 0 && !showAnnotationForm ? (
+              <Text style={styles.noAnnotations}>Nenhuma anotação registada.</Text>
+            ) : (
+              annotations.map((a, idx) => (
+                <View key={a._id || idx} style={styles.annotationItem}>
+                  <View style={styles.annotationMeta}>
+                    <Ionicons name="person-circle" size={16} color={COLORS.blue} />
+                    <Text style={styles.annotationAuthor}>{a.agente_nome || 'Agente'}</Text>
+                    <Text style={styles.annotationTime}>
+                      {a.created_at ? new Date(a.created_at).toLocaleString('pt-AO') : ''}
+                    </Text>
+                  </View>
+                  {a.texto ? <Text style={styles.annotationText}>{a.texto}</Text> : null}
+                  {a.fotos?.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+                      {a.fotos.map((foto, fi) => (
+                        <Image key={fi} source={{ uri: foto }} style={styles.annotationPhoto} />
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
+              ))
+            )}
           </View>
         )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Expanded Map Modal */}
+      <Modal visible={mapExpanded} animationType="slide" statusBarTranslucent>
+        <View style={styles.expandedMapContainer}>
+          <MapView
+            ref={expandedMapRef}
+            style={styles.expandedMap}
+            initialRegion={{
+              latitude: accident.latitude,
+              longitude: accident.longitude,
+              latitudeDelta: 0.03,
+              longitudeDelta: 0.03,
+            }}
+            showsUserLocation
+          >
+            {renderMapContent()}
+          </MapView>
+
+          {/* Close button */}
+          <TouchableOpacity
+            style={styles.closeExpandedBtn}
+            onPress={() => setMapExpanded(false)}
+          >
+            <Ionicons name="close" size={24} color={COLORS.white} />
+          </TouchableOpacity>
+
+          {/* ETA on expanded */}
+          {eta != null && (
+            <View style={[styles.etaOverlay, { top: 60 }]}>
+              <Ionicons name="navigate" size={16} color={COLORS.blue} />
+              <Text style={styles.etaText}>{eta} min</Text>
+              <Text style={styles.etaDistText}>{distance} km</Text>
+            </View>
+          )}
+
+          {/* Nav button on expanded */}
+          <TouchableOpacity style={[styles.navButton, { bottom: 40 }]} onPress={openInMaps} activeOpacity={0.8}>
+            <Ionicons name="navigate-circle" size={20} color={COLORS.white} />
+            <Text style={styles.navButtonText}>Abrir no Maps</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -583,6 +797,11 @@ const styles = StyleSheet.create({
   },
   etaText: { fontSize: FONTS.md, fontWeight: 'bold', color: COLORS.blue },
   etaDistText: { fontSize: FONTS.xs, color: COLORS.gray },
+  expandButton: {
+    position: 'absolute', top: SPACING.sm, right: SPACING.sm,
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center',
+  },
   navButton: {
     position: 'absolute', bottom: SPACING.sm, right: SPACING.sm,
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -592,7 +811,7 @@ const styles = StyleSheet.create({
   },
   navButtonText: { color: COLORS.white, fontWeight: 'bold', fontSize: FONTS.sm },
   arrivedBadge: {
-    position: 'absolute', top: SPACING.sm, right: SPACING.sm,
+    position: 'absolute', bottom: SPACING.sm, left: SPACING.sm,
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.sm, paddingVertical: 6,
@@ -616,13 +835,21 @@ const styles = StyleSheet.create({
   },
   trackingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' },
   trackingText: { fontSize: FONTS.xs, color: '#22C55E', fontWeight: '600' },
-  confirmBtn: {
+  solicitarBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: COLORS.blue, borderRadius: RADIUS.lg,
     paddingVertical: SPACING.md, marginBottom: SPACING.md,
     ...SHADOWS.medium, borderBottomWidth: 4, borderBottomColor: '#1D4ED8',
   },
-  confirmBtnText: { color: COLORS.white, fontWeight: 'bold', fontSize: FONTS.md },
+  solicitarBtnText: { color: COLORS.white, fontWeight: 'bold', fontSize: FONTS.md },
+  pendingCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#FFFBEB', borderRadius: RADIUS.lg,
+    padding: SPACING.md, marginBottom: SPACING.md,
+    borderWidth: 1, borderColor: '#FDE68A',
+  },
+  pendingTitle: { fontSize: FONTS.sm, fontWeight: 'bold', color: '#92400E' },
+  pendingDesc: { fontSize: FONTS.xs, color: '#78716C', marginTop: 2, lineHeight: 18 },
   actionRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm,
     marginBottom: SPACING.md,
@@ -649,27 +876,65 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 10, color: COLORS.gray, textTransform: 'uppercase', marginTop: 2 },
   causaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.sm },
   causaText: { fontSize: FONTS.sm, color: COLORS.grayDark, flex: 1 },
-  boletimCard: {
+  // Annotations
+  annotationCard: {
     backgroundColor: COLORS.white, borderRadius: RADIUS.lg,
     padding: SPACING.md, marginBottom: SPACING.md, ...SHADOWS.medium,
   },
-  boletimHeader: {
+  annotationHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
-  boletimTitle: { fontSize: FONTS.md, fontWeight: 'bold', color: COLORS.purple },
-  fieldLabel: { fontSize: FONTS.xs, fontWeight: '700', color: COLORS.gray, marginBottom: 4, textTransform: 'uppercase' },
+  addAnnotationBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: COLORS.blue, justifyContent: 'center', alignItems: 'center',
+  },
+  annotationForm: { marginBottom: SPACING.md },
   input: {
     backgroundColor: '#F1F5F9', borderRadius: RADIUS.md, padding: SPACING.sm,
     fontSize: FONTS.sm, color: COLORS.black, marginBottom: SPACING.sm,
     borderWidth: 1, borderColor: '#E2E8F0',
   },
-  textArea: { minHeight: 100 },
-  submitBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: COLORS.purple, borderRadius: RADIUS.md,
-    paddingVertical: SPACING.md, marginTop: SPACING.sm,
-    ...SHADOWS.medium, borderBottomWidth: 4, borderBottomColor: '#0F172A',
+  textArea: { minHeight: 80 },
+  photoRow: { marginBottom: SPACING.sm },
+  photoPreview: { marginRight: 8, position: 'relative' },
+  photoThumb: { width: 70, height: 70, borderRadius: RADIUS.sm },
+  photoRemove: { position: 'absolute', top: -6, right: -6 },
+  annotationActions: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
   },
-  submitBtnText: { color: COLORS.white, fontWeight: 'bold', fontSize: FONTS.md },
+  photoBtnSmall: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#F1F5F9', borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.sm, paddingVertical: 8,
+    borderWidth: 1, borderColor: '#E2E8F0',
+  },
+  photoBtnText: { fontSize: FONTS.xs, color: COLORS.grayDark, fontWeight: '600' },
+  saveAnnotationBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1,
+    justifyContent: 'center',
+    backgroundColor: COLORS.green, borderRadius: RADIUS.md,
+    paddingVertical: 8, ...SHADOWS.small,
+  },
+  saveAnnotationText: { color: COLORS.white, fontWeight: 'bold', fontSize: FONTS.sm },
+  noAnnotations: { color: COLORS.gray, fontSize: FONTS.sm, textAlign: 'center', paddingVertical: SPACING.md },
+  annotationItem: {
+    backgroundColor: '#F8FAFC', borderRadius: RADIUS.md,
+    padding: SPACING.sm, marginBottom: SPACING.sm,
+    borderWidth: 1, borderColor: '#E2E8F0',
+  },
+  annotationMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
+  annotationAuthor: { fontSize: FONTS.xs, fontWeight: '600', color: COLORS.blue },
+  annotationTime: { fontSize: 10, color: COLORS.gray, marginLeft: 'auto' },
+  annotationText: { fontSize: FONTS.sm, color: COLORS.grayDark, lineHeight: 20 },
+  annotationPhoto: { width: 100, height: 80, borderRadius: RADIUS.sm, marginRight: 6 },
+  // Expanded map modal
+  expandedMapContainer: { flex: 1, backgroundColor: COLORS.bgDark },
+  expandedMap: { flex: 1 },
+  closeExpandedBtn: {
+    position: 'absolute', top: 50, left: SPACING.md,
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center',
+    ...SHADOWS.medium,
+  },
 });
