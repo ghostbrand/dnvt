@@ -24,6 +24,7 @@ if (config.enableHealthCheck) {
 
 let webpackConfig = {
   eslint: {
+    enable: process.env.NODE_ENV !== 'production',
     configure: {
       extends: ["plugin:react-hooks/recommended"],
       rules: {
