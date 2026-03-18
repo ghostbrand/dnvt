@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -24,6 +24,12 @@ import {
   DialogTrigger,
   DialogFooter,
 } from '../components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
 import { acidentesApi, assistenciasApi, boletinsApi, configuracoesApi, utilizadoresApi, delegacoesApi, anotacoesApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -55,7 +61,8 @@ import {
   XCircle,
   MessageSquare,
   Camera,
-  Image as ImageIcon
+  Image as ImageIcon,
+  MoreVertical
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -80,6 +87,7 @@ export default function AcidenteDetalhesPage() {
   const [agentesACaminho, setAgentesACaminho] = useState([]);
   const [mapExpanded, setMapExpanded] = useState(false);
   const agentMarkersRef = useRef([]);
+  const [allUsers, setAllUsers] = useState([]);
 
   // Delegation state
   const [agentesAtivos, setAgentesAtivos] = useState([]);
@@ -91,17 +99,6 @@ export default function AcidenteDetalhesPage() {
 
   // Annotations
   const [anotacoes, setAnotacoes] = useState([]);
-
-  // Boletim modal
-  const [boletimModal, setBoletimModal] = useState(false);
-  const [creatingBoletim, setCreatingBoletim] = useState(false);
-  const [boletimForm, setBoletimForm] = useState({
-    numero_processo: '',
-    observacoes: '',
-    vitimas_info: [],
-    veiculos_info: [],
-    testemunhas: []
-  });
 
   const [editForm, setEditForm] = useState({
     status: '',
@@ -169,6 +166,7 @@ export default function AcidenteDetalhesPage() {
         setAcidente(acidenteData);
         setAssistencias(assistData);
         setBoletins(boletinsData);
+        setAllUsers(usersData);
         setAgentes(usersData.filter(u => ['policia', 'admin'].includes(u.role) && u.status === 'ativo'));
         setEditForm({
           status: acidenteData.status,
@@ -246,12 +244,12 @@ export default function AcidenteDetalhesPage() {
           strokeWeight: 2,
           rotation: 0
         },
-        title: `${ag.agente_nome || 'Agente'} — ${isArrived ? 'No Local' : 'A Caminho'}`,
+        title: `${ag.agente_nome || 'Agente'} â€” ${isArrived ? 'No Local' : 'A Caminho'}`,
         zIndex: 10
       });
 
       const info = new window.google.maps.InfoWindow({
-        content: `<div style="font-family:sans-serif;padding:4px"><strong>${ag.agente_nome || 'Agente'}</strong><br/><span style="color:${isArrived ? '#16A34A' : '#2563EB'};font-size:12px">${isArrived ? '✅ Chegou ao local' : '🚗 A caminho'}</span><br/><span style="color:#64748b;font-size:11px">Atualizado: ${new Date(ag.updated_at).toLocaleTimeString('pt-AO')}</span></div>`
+        content: `<div style="font-family:sans-serif;padding:4px"><strong>${ag.agente_nome || 'Agente'}</strong><br/><span style="color:${isArrived ? '#16A34A' : '#2563EB'};font-size:12px">${isArrived ? 'âœ… Chegou ao local' : 'ðŸš— A caminho'}</span><br/><span style="color:#64748b;font-size:11px">Atualizado: ${new Date(ag.updated_at).toLocaleTimeString('pt-AO')}</span></div>`
       });
       marker.addListener('click', () => info.open(map, marker));
 
@@ -302,7 +300,7 @@ export default function AcidenteDetalhesPage() {
         if (ag) payload.agente_nome = ag.name;
       }
       await assistenciasApi.create(payload);
-      toast.success('Assistência enviada');
+      toast.success('AssistÃªncia enviada');
       setAssistDialog(false);
       setNewAssist({ tipo: 'AMBULANCIA', agente_id: '' });
       setAgenteSearch('');
@@ -313,40 +311,13 @@ export default function AcidenteDetalhesPage() {
       const acidenteData = await acidentesApi.get(id);
       setAcidente(acidenteData);
     } catch (error) {
-      toast.error('Erro ao criar assistência');
+      toast.error('Erro ao criar assistÃªncia');
     }
   };
 
   const handleCreateBoletim = () => {
-    setBoletimForm({ numero_processo: '', observacoes: '', vitimas_info: [], veiculos_info: [], testemunhas: [] });
-    setBoletimModal(true);
+    navigate(`/boletins/novo?acidente_id=${id}`);
   };
-
-  const handleSubmitBoletim = async () => {
-    setCreatingBoletim(true);
-    try {
-      const payload = { ...boletimForm, acidente_id: id, modo_criacao: 'GERADO_SISTEMA' };
-      await boletinsApi.create(payload);
-      toast.success('Boletim criado com sucesso');
-      setBoletimModal(false);
-      const boletinsData = await boletinsApi.list({ acidente_id: id }).catch(() => []);
-      setBoletins(boletinsData);
-    } catch (err) {
-      toast.error('Erro ao criar boletim');
-    } finally {
-      setCreatingBoletim(false);
-    }
-  };
-
-  const addVitima = () => setBoletimForm(f => ({ ...f, vitimas_info: [...f.vitimas_info, { nome: '', bi: '', estado: 'FERIDO_LEVE', telefone: '' }] }));
-  const removeVitima = (i) => setBoletimForm(f => ({ ...f, vitimas_info: f.vitimas_info.filter((_, idx) => idx !== i) }));
-  const updateVitima = (i, field, val) => setBoletimForm(f => { const v = [...f.vitimas_info]; v[i][field] = val; return { ...f, vitimas_info: v }; });
-  const addVeiculo = () => setBoletimForm(f => ({ ...f, veiculos_info: [...f.veiculos_info, { marca: '', modelo: '', matricula: '', cor: '', condutor: '' }] }));
-  const removeVeiculo = (i) => setBoletimForm(f => ({ ...f, veiculos_info: f.veiculos_info.filter((_, idx) => idx !== i) }));
-  const updateVeiculo = (i, field, val) => setBoletimForm(f => { const v = [...f.veiculos_info]; v[i][field] = val; return { ...f, veiculos_info: v }; });
-  const addTestemunha = () => setBoletimForm(f => ({ ...f, testemunhas: [...f.testemunhas, { nome: '', bi: '', telefone: '', endereco: '' }] }));
-  const removeTestemunha = (i) => setBoletimForm(f => ({ ...f, testemunhas: f.testemunhas.filter((_, idx) => idx !== i) }));
-  const updateTestemunha = (i, field, val) => setBoletimForm(f => { const v = [...f.testemunhas]; v[i][field] = val; return { ...f, testemunhas: v }; });
 
   // Distance calculation helper (Haversine)
   const calcDistance = (lat1, lng1, lat2, lng2) => {
@@ -373,7 +344,7 @@ export default function AcidenteDetalhesPage() {
         latitude_agente: agent.latitude,
         longitude_agente: agent.longitude
       });
-      toast.success(`Missão delegada a ${agent.name || 'agente'}`);
+      toast.success(`MissÃ£o delegada a ${agent.name || 'agente'}`);
       setDelegationModal(false);
       setSelectedAgent(null);
       // Refresh delegations
@@ -431,7 +402,7 @@ export default function AcidenteDetalhesPage() {
     return (
       <Layout>
         <div className="text-center py-12">
-          <p className="text-slate-500">Acidente não encontrado</p>
+          <p className="text-slate-500">Acidente nÃ£o encontrado</p>
         </div>
       </Layout>
     );
@@ -457,7 +428,28 @@ export default function AcidenteDetalhesPage() {
     return <Badge className={styles[gravidade]}>{gravidade}</Badge>;
   };
 
+  const getOrigemLabel = (origem) => {
+    const map = {
+      MOBILE_CIDADAO: 'Mobile Cidadão',
+      MOBILE_AGENTE: 'Mobile Agente',
+      WEB_ADMIN: 'Painel Admin',
+      WEB_POLICIA: 'Painel Polícia',
+      SISTEMA: 'Sistema',
+    };
+    return map[origem] || origem?.replace(/_/g, ' ') || 'N/A';
+  };
+
+  const getUserDisplayName = (value) => {
+    if (!value) return 'N/A';
+    const normalized = String(value);
+    const byId = allUsers.find(u => String(u._id) === normalized || String(u.id) === normalized);
+    if (byId) return byId.nome || byId.name || byId.email || normalized;
+    return normalized;
+  };
+
   const canEdit = user?.tipo === 'ADMIN' || user?.tipo === 'POLICIA';
+  const canCreateBoletim = canEdit;
+  const canCreateBoletimNow = acidente?.status === 'EM_ATENDIMENTO' || agentesACaminho.some(a => a.status === 'CHEGOU');
 
   return (
     <Layout>
@@ -475,18 +467,45 @@ export default function AcidenteDetalhesPage() {
             </div>
           </div>
           {canEdit && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
               <Button variant="outline" onClick={() => setEditMode(!editMode)}>
                 <Edit className="w-4 h-4 mr-2" />
                 {editMode ? 'Cancelar' : 'Editar'}
               </Button>
+              {!editMode && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon" className="rounded-full h-10 w-10 fixed bottom-6 right-6 z-30 shadow-lg">
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" sideOffset={10} className="w-56">
+                    {acidente.status === 'REPORTADO' && (
+                      <DropdownMenuItem onClick={() => handleQuickStatus('VALIDADO')}>
+                        <CheckCircle className="w-4 h-4 mr-2 text-blue-600" />
+                        Validar
+                      </DropdownMenuItem>
+                    )}
+                    {['REPORTADO', 'VALIDADO'].includes(acidente.status) && (
+                      <DropdownMenuItem onClick={() => handleQuickStatus('EM_ATENDIMENTO')}>
+                        <Activity className="w-4 h-4 mr-2 text-orange-600" />
+                        Em Atendimento
+                      </DropdownMenuItem>
+                    )}
+                    {acidente.status === 'EM_ATENDIMENTO' && (
+                      <DropdownMenuItem onClick={() => handleQuickStatus('ENCERRADO')}>
+                        <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                        Resolver
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => setDeleteDialog(true)} className="text-red-600 focus:text-red-600">
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Remover
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               <Dialog open={deleteDialog} onOpenChange={setDeleteDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="destructive">
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Remover
-                  </Button>
-                </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Confirmar Remoção</DialogTitle>
@@ -516,31 +535,7 @@ export default function AcidenteDetalhesPage() {
           )}
         </div>
 
-        {/* Quick Action Buttons */}
-        {canEdit && !editMode && (
-          <div className="flex flex-wrap items-center gap-2">
-            {acidente.status === 'REPORTADO' && (
-              <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-700" onClick={() => handleQuickStatus('VALIDADO')}>
-                <CheckCircle className="w-4 h-4 mr-1" />
-                Validar
-              </Button>
-            )}
-            {['REPORTADO', 'VALIDADO'].includes(acidente.status) && (
-              <Button size="sm" className="rounded-xl bg-orange-500 hover:bg-orange-600" onClick={() => handleQuickStatus('EM_ATENDIMENTO')}>
-                <Activity className="w-4 h-4 mr-1" />
-                Em Atendimento
-              </Button>
-            )}
-            {acidente.status === 'EM_ATENDIMENTO' && (
-              <Button size="sm" className="rounded-xl bg-green-600 hover:bg-green-700" onClick={() => handleQuickStatus('ENCERRADO')}>
-                <CheckCircle className="w-4 h-4 mr-1" />
-                Encerrar
-              </Button>
-            )}
-          </div>
-        )}
-
-        {/* Pending Agent Mission Requests — TOP PRIORITY */}
+        {/* Pending Agent Mission Requests â€” TOP PRIORITY */}
         {pedidosPendentes.length > 0 && (
           <Card className="border-amber-200 bg-amber-50/50 animate-pulse-slow">
             <CardHeader>
@@ -810,10 +805,10 @@ export default function AcidenteDetalhesPage() {
                                     ? 'bg-green-100 text-green-700 border-green-300 text-[10px]'
                                     : 'bg-blue-100 text-blue-700 border-blue-300 text-[10px] animate-pulse'
                                 }>
-                                  {isArrived ? '✅ No Local' : '🚗 A Caminho'}
+                                  {isArrived ? 'Chegou ao local' : 'A caminho'}
                                 </Badge>
                                 <p className="text-[9px] text-slate-400 mt-1">
-                                  {ag.updated_at ? new Date(ag.updated_at).toLocaleTimeString('pt-AO') : '—'}
+                                  {ag.updated_at ? new Date(ag.updated_at).toLocaleTimeString('pt-AO') : 'â€”'}
                                 </p>
                               </div>
                             </div>
@@ -831,7 +826,7 @@ export default function AcidenteDetalhesPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Clock className="w-5 h-5" />
-                  Histórico de Registro
+                  Histórico de Registo
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -846,15 +841,15 @@ export default function AcidenteDetalhesPage() {
                   </div>
                   <div className="p-3 bg-slate-50 rounded-xl">
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Origem do registo</p>
-                    <Badge variant="outline">{acidente.origem_registro?.replace(/_/g, ' ')}</Badge>
+                    <Badge variant="outline">{getOrigemLabel(acidente.origem_registro)}</Badge>
                   </div>
                   <div className="p-3 bg-blue-50 rounded-xl">
                     <p className="text-[10px] text-blue-500 font-bold uppercase tracking-wider mb-1">Registado por</p>
-                    <p className="text-sm font-semibold text-blue-700">{acidente.created_by || 'N/A'}</p>
+                    <p className="text-sm font-semibold text-blue-700">{getUserDisplayName(acidente.created_by_nome || acidente.created_by_name || acidente.created_by)}</p>
                   </div>
                   <div className="p-3 bg-amber-50 rounded-xl">
                     <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider mb-1">Última edição por</p>
-                    <p className="text-sm font-semibold text-amber-700">{acidente.updated_by || 'N/A'}</p>
+                    <p className="text-sm font-semibold text-amber-700">{getUserDisplayName(acidente.updated_by_nome || acidente.updated_by_name || acidente.updated_by)}</p>
                   </div>
                 </div>
               </CardContent>
@@ -870,10 +865,10 @@ export default function AcidenteDetalhesPage() {
                   </CardTitle>
                   <CardDescription>Documentos oficiais do acidente</CardDescription>
                 </div>
-                {canEdit && (
-                  <Button size="sm" onClick={handleCreateBoletim}>
+                {canCreateBoletim && (
+                  <Button size="sm" onClick={handleCreateBoletim} disabled={!canCreateBoletimNow}>
                     <Plus className="w-4 h-4 mr-1" />
-                    Novo Boletim
+                    Cadastrar Boletim
                   </Button>
                 )}
               </CardHeader>
@@ -882,11 +877,16 @@ export default function AcidenteDetalhesPage() {
                   <div className="text-center py-6">
                     <FileText className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                     <p className="text-slate-400 text-sm">Nenhum boletim elaborado para este acidente</p>
-                    {canEdit && (
-                      <Button size="sm" variant="outline" className="mt-3" onClick={handleCreateBoletim}>
+                    {canCreateBoletim && (
+                      <Button size="sm" variant="outline" className="mt-3" onClick={handleCreateBoletim} disabled={!canCreateBoletimNow}>
                         <Plus className="w-4 h-4 mr-1" />
-                        Criar Boletim
+                        Cadastrar Boletim
                       </Button>
+                    )}
+                    {canEdit && !canCreateBoletimNow && (
+                      <p className="text-xs text-amber-600 mt-3">
+                        O boletim só pode ser cadastrado depois que o atendimento iniciar ou um agente chegar ao local.
+                      </p>
                     )}
                   </div>
                 ) : (
@@ -926,16 +926,16 @@ export default function AcidenteDetalhesPage() {
                           )}
                           <div className="flex items-center gap-4 mt-2 ml-6">
                             <span className="text-[11px] text-slate-400">
-                              {b.created_at ? new Date(b.created_at).toLocaleString('pt-AO') : '—'}
+                              {b.created_at ? new Date(b.created_at).toLocaleString('pt-AO') : 'â€”'}
                             </span>
                             {b.created_by && (
                               <span className="text-[11px] text-slate-400">por {b.created_by}</span>
                             )}
                             {b.vitimas_info?.length > 0 && (
-                              <span className="text-[11px] text-slate-400">{b.vitimas_info.length} vítima(s)</span>
+                              <span className="text-[11px] text-slate-400">{b.vitimas_info.length} vÃ­tima(s)</span>
                             )}
                             {b.veiculos_info?.length > 0 && (
-                              <span className="text-[11px] text-slate-400">{b.veiculos_info.length} veículo(s)</span>
+                              <span className="text-[11px] text-slate-400">{b.veiculos_info.length} veÃ­culo(s)</span>
                             )}
                           </div>
                         </Link>
@@ -1011,7 +1011,7 @@ export default function AcidenteDetalhesPage() {
                                   </div>
                                   <div className="text-right flex-shrink-0">
                                     {hasActive ? (
-                                      <Badge className="bg-green-100 text-green-700 text-[10px]">Já delegado</Badge>
+                                      <Badge className="bg-green-100 text-green-700 text-[10px]">JÃ¡ delegado</Badge>
                                     ) : dist != null ? (
                                       <div>
                                         <p className="text-lg font-bold text-blue-600">{dist}</p>
@@ -1090,7 +1090,7 @@ export default function AcidenteDetalhesPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <MessageSquare className="w-5 h-5" />
-                    Anotações de Agentes ({anotacoes.length})
+                    AnotaÃ§Ãµes de Agentes ({anotacoes.length})
                   </CardTitle>
                   <CardDescription>Notas e fotos registadas por agentes no local</CardDescription>
                 </CardHeader>
@@ -1128,142 +1128,7 @@ export default function AcidenteDetalhesPage() {
         )}
       </div>
 
-      {/* Boletim Creation Modal */}
-      <Dialog open={boletimModal} onOpenChange={setBoletimModal}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Novo Boletim de Ocorrência
-            </DialogTitle>
-            <DialogDescription>
-              Acidente: {acidente?.tipo_acidente?.replace(/_/g, ' ')} — {acidente?.gravidade}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-5 mt-2">
-            {/* Número do Processo */}
-            <div>
-              <Label>Número do Processo (opcional)</Label>
-              <Input
-                placeholder="DNVT-20260306-XXXXXX"
-                value={boletimForm.numero_processo}
-                onChange={(e) => setBoletimForm(f => ({ ...f, numero_processo: e.target.value }))}
-                className="mt-1"
-              />
-              <p className="text-[11px] text-slate-400 mt-1">Deixe em branco para gerar automaticamente</p>
-            </div>
-
-            {/* Vítimas */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label className="text-sm font-semibold">Vítimas ({boletimForm.vitimas_info.length})</Label>
-                <Button type="button" size="sm" variant="outline" className="h-7 text-xs rounded-lg" onClick={addVitima}>
-                  <Plus className="w-3 h-3 mr-1" /> Adicionar
-                </Button>
-              </div>
-              {boletimForm.vitimas_info.length === 0 && (
-                <p className="text-xs text-slate-400 italic">Nenhuma vítima adicionada</p>
-              )}
-              {boletimForm.vitimas_info.map((v, i) => (
-                <div key={i} className="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-lg border mb-2 relative">
-                  <Button type="button" size="sm" variant="ghost" className="absolute top-1 right-1 h-6 w-6 p-0 text-red-400 hover:text-red-600" onClick={() => removeVitima(i)}>
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                  <Input placeholder="Nome" value={v.nome} onChange={(e) => updateVitima(i, 'nome', e.target.value)} className="text-xs h-8" />
-                  <Input placeholder="BI / Nº Identidade" value={v.bi} onChange={(e) => updateVitima(i, 'bi', e.target.value)} className="text-xs h-8" />
-                  <Input placeholder="Telefone" value={v.telefone} onChange={(e) => updateVitima(i, 'telefone', e.target.value)} className="text-xs h-8" />
-                  <Select value={v.estado} onValueChange={(val) => updateVitima(i, 'estado', val)}>
-                    <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="FERIDO_LEVE">Ferido Leve</SelectItem>
-                      <SelectItem value="FERIDO_GRAVE">Ferido Grave</SelectItem>
-                      <SelectItem value="FATAL">Fatal</SelectItem>
-                      <SelectItem value="ILESO">Ileso</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
-            </div>
-
-            <Separator />
-
-            {/* Veículos */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label className="text-sm font-semibold">Veículos ({boletimForm.veiculos_info.length})</Label>
-                <Button type="button" size="sm" variant="outline" className="h-7 text-xs rounded-lg" onClick={addVeiculo}>
-                  <Plus className="w-3 h-3 mr-1" /> Adicionar
-                </Button>
-              </div>
-              {boletimForm.veiculos_info.length === 0 && (
-                <p className="text-xs text-slate-400 italic">Nenhum veículo adicionado</p>
-              )}
-              {boletimForm.veiculos_info.map((v, i) => (
-                <div key={i} className="grid grid-cols-3 gap-2 p-3 bg-slate-50 rounded-lg border mb-2 relative">
-                  <Button type="button" size="sm" variant="ghost" className="absolute top-1 right-1 h-6 w-6 p-0 text-red-400 hover:text-red-600" onClick={() => removeVeiculo(i)}>
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                  <Input placeholder="Marca" value={v.marca} onChange={(e) => updateVeiculo(i, 'marca', e.target.value)} className="text-xs h-8" />
-                  <Input placeholder="Modelo" value={v.modelo} onChange={(e) => updateVeiculo(i, 'modelo', e.target.value)} className="text-xs h-8" />
-                  <Input placeholder="Matrícula" value={v.matricula} onChange={(e) => updateVeiculo(i, 'matricula', e.target.value)} className="text-xs h-8" />
-                  <Input placeholder="Cor" value={v.cor} onChange={(e) => updateVeiculo(i, 'cor', e.target.value)} className="text-xs h-8" />
-                  <Input placeholder="Condutor" value={v.condutor} onChange={(e) => updateVeiculo(i, 'condutor', e.target.value)} className="text-xs h-8 col-span-2" />
-                </div>
-              ))}
-            </div>
-
-            <Separator />
-
-            {/* Testemunhas */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label className="text-sm font-semibold">Testemunhas ({boletimForm.testemunhas.length})</Label>
-                <Button type="button" size="sm" variant="outline" className="h-7 text-xs rounded-lg" onClick={addTestemunha}>
-                  <Plus className="w-3 h-3 mr-1" /> Adicionar
-                </Button>
-              </div>
-              {boletimForm.testemunhas.length === 0 && (
-                <p className="text-xs text-slate-400 italic">Nenhuma testemunha adicionada</p>
-              )}
-              {boletimForm.testemunhas.map((t, i) => (
-                <div key={i} className="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-lg border mb-2 relative">
-                  <Button type="button" size="sm" variant="ghost" className="absolute top-1 right-1 h-6 w-6 p-0 text-red-400 hover:text-red-600" onClick={() => removeTestemunha(i)}>
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                  <Input placeholder="Nome" value={t.nome} onChange={(e) => updateTestemunha(i, 'nome', e.target.value)} className="text-xs h-8" />
-                  <Input placeholder="BI / Nº Identidade" value={t.bi} onChange={(e) => updateTestemunha(i, 'bi', e.target.value)} className="text-xs h-8" />
-                  <Input placeholder="Telefone" value={t.telefone} onChange={(e) => updateTestemunha(i, 'telefone', e.target.value)} className="text-xs h-8" />
-                  <Input placeholder="Endereço" value={t.endereco} onChange={(e) => updateTestemunha(i, 'endereco', e.target.value)} className="text-xs h-8" />
-                </div>
-              ))}
-            </div>
-
-            <Separator />
-
-            {/* Observações */}
-            <div>
-              <Label>Observações</Label>
-              <Textarea
-                placeholder="Observações adicionais..."
-                value={boletimForm.observacoes}
-                onChange={(e) => setBoletimForm(f => ({ ...f, observacoes: e.target.value }))}
-                rows={3}
-                className="mt-1"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setBoletimModal(false)}>Cancelar</Button>
-            <Button onClick={handleSubmitBoletim} disabled={creatingBoletim}>
-              {creatingBoletim && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              <FileText className="w-4 h-4 mr-1" />
-              Criar Boletim
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Layout>
   );
 }
+

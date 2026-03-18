@@ -38,13 +38,22 @@ function AuthStack() {
 function AppStack() {
   return (
     <Stack.Navigator 
+      initialRouteName="Map"
       screenOptions={{ 
         headerShown: false,
         animation: 'slide_from_right'
       }}
     >
       <Stack.Screen name="Home" component={HomeScreen} />
-      <Stack.Screen name="ReportAccident" component={ReportAccidentScreen} />
+      <Stack.Screen 
+        name="ReportAccident" 
+        component={ReportAccidentScreen}
+        options={{
+          presentation: 'transparentModal',
+          animation: 'slide_from_right',
+          contentStyle: { backgroundColor: 'transparent' }
+        }}
+      />
       <Stack.Screen name="MyReports" component={MyReportsScreen} />
       <Stack.Screen name="Alerts" component={AlertsScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />

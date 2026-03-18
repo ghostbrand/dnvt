@@ -41,7 +41,6 @@ export default function SidebarScreen({ navigation }) {
     {
       title: 'Explorar',
       items: [
-        { id: 'map', label: 'Mapa', icon: 'map', screen: 'Map' },
         ...(!isCidadao ? [
           { id: 'alerts', label: 'Todos os Acidentes', icon: 'notifications', screen: 'Alerts' },
         ] : []),

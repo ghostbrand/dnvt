@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, ScrollView, RefreshControl, 
-  TouchableOpacity, ActivityIndicator 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  ActivityIndicator,
+  StatusBar
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
-import KahootCard from '../components/KahootCard';
 import { COLORS, SPACING, FONTS, RADIUS } from '../config';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -81,19 +86,26 @@ export default function MyReportsScreen({ navigation }) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.blue} />
-        <Text style={styles.loadingText}>A carregar reportes...</Text>
+        <Text style={styles.loadingText}>A carregar relatórios...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.blueLight} />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+          <Ionicons name="arrow-back" size={22} color={COLORS.white} />
         </TouchableOpacity>
-        <Text style={styles.title}>Meus Reportes</Text>
-        <Text style={styles.subtitle}>{reports.length} reporte{reports.length !== 1 ? 's' : ''}</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerEyebrow}>Histórico pessoal</Text>
+          <Text style={styles.title}>Meus Reportes</Text>
+          <Text style={styles.subtitle}>{reports.length} reporte{reports.length !== 1 ? 's' : ''}</Text>
+        </View>
+        <TouchableOpacity onPress={onRefresh} style={styles.headerButton}>
+          <Ionicons name="refresh" size={20} color={COLORS.white} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -103,67 +115,95 @@ export default function MyReportsScreen({ navigation }) {
       >
         {reports.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="document-text-outline" size={64} color="rgba(255,255,255,0.3)" style={{marginBottom: SPACING.md}} />
-            <Text style={styles.emptyTitle}>Nenhum reporte</Text>
-            <Text style={styles.emptyText}>Os seus reportes de acidentes aparecerão aqui</Text>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="document-text-outline" size={42} color={COLORS.white} />
+            </View>
+            <Text style={styles.emptyTitle}>Nenhum reporte ainda</Text>
+            <Text style={styles.emptyText}>Os seus reportes de acidentes vão aparecer aqui assim que enviar o primeiro.</Text>
             <TouchableOpacity 
               style={styles.reportButton}
               onPress={() => navigation.navigate('ReportAccident')}
             >
-              <Text style={styles.reportButtonText}>Reportar Acidente</Text>
+              <Text style={styles.reportButtonText}>Novo Reporte</Text>
             </TouchableOpacity>
           </View>
         ) : (
           reports.map((report, index) => {
             const grav = getGravidadeStyle(report.gravidade);
             return (
-              <KahootCard key={report._id || report.acidente_id || index} accentColor={grav.bg}>
-                <View style={styles.reportCard}>
-                  <View style={styles.reportHeader}>
-                    <View style={[styles.gravidadeBadge, { backgroundColor: grav.bg }]}>
-                      <Text style={styles.gravidadeText}>{grav.label}</Text>
-                    </View>
-                    <View style={[styles.statusBadge, { borderColor: getStatusColor(report.status) }]}>
-                      <View style={[styles.statusDot, { backgroundColor: getStatusColor(report.status) }]} />
-                      <Text style={[styles.statusText, { color: getStatusColor(report.status) }]}>
-                        {getStatusLabel(report.status)}
-                      </Text>
-                    </View>
+              <TouchableOpacity
+                key={report._id || report.acidente_id || index}
+                style={styles.reportCard}
+                activeOpacity={0.92}
+                onPress={() => navigation.navigate('AccidentDetail', { accidentId: report._id || report.acidente_id })}
+              >
+                <View style={styles.reportHeader}>
+                  <View style={[styles.gravidadeBadge, { backgroundColor: grav.bg }]}>
+                    <Text style={styles.gravidadeText}>{grav.label}</Text>
                   </View>
-
-                  <Text style={styles.reportType}>
-                    {report.tipo_acidente?.replace(/_/g, ' ') || 'Acidente'}
-                  </Text>
-                  
-                  {report.descricao ? (
-                    <Text style={styles.reportDesc} numberOfLines={2}>{report.descricao}</Text>
-                  ) : null}
-
-                  <View style={styles.reportMeta}>
-                    <Text style={styles.metaItem}><Ionicons name="calendar-outline" size={12} color={COLORS.gray} /> {formatDate(report.created_at)}</Text>
-                    <Text style={styles.metaItem}><Ionicons name="time-outline" size={12} color={COLORS.gray} /> {formatTime(report.created_at)}</Text>
-                  </View>
-
-                  <View style={styles.reportStats}>
-                    <View style={styles.stat}>
-                      <Text style={styles.statValue}>{report.numero_vitimas || 0}</Text>
-                      <Text style={styles.statLabel}>Vítimas</Text>
-                    </View>
-                    <View style={styles.stat}>
-                      <Text style={styles.statValue}>{report.numero_veiculos || 0}</Text>
-                      <Text style={styles.statLabel}>Veículos</Text>
-                    </View>
-                    <View style={styles.stat}>
-                      <Text style={styles.statValue}>{report.latitude?.toFixed(3) || '-'}</Text>
-                      <Text style={styles.statLabel}>Lat</Text>
-                    </View>
-                    <View style={styles.stat}>
-                      <Text style={styles.statValue}>{report.longitude?.toFixed(3) || '-'}</Text>
-                      <Text style={styles.statLabel}>Lng</Text>
-                    </View>
+                  <View style={[styles.statusBadge, { borderColor: getStatusColor(report.status) }]}>
+                    <View style={[styles.statusDot, { backgroundColor: getStatusColor(report.status) }]} />
+                    <Text style={[styles.statusText, { color: getStatusColor(report.status) }]}>
+                      {getStatusLabel(report.status)}
+                    </Text>
                   </View>
                 </View>
-              </KahootCard>
+
+                <Text style={styles.reportType}>
+                  {report.tipo_acidente?.replace(/_/g, ' ') || 'Acidente'}
+                </Text>
+                
+                {report.descricao ? (
+                  <Text style={styles.reportDesc} numberOfLines={2}>{report.descricao}</Text>
+                ) : (
+                  <Text style={styles.reportDesc} numberOfLines={2}>Sem descrição adicional.</Text>
+                )}
+
+                <View style={styles.reportMetaRow}>
+                  <View style={styles.metaPill}>
+                    <Ionicons name="calendar-outline" size={13} color="#CBD5E1" />
+                    <Text style={styles.metaText}>{formatDate(report.created_at)}</Text>
+                  </View>
+                  <View style={styles.metaPill}>
+                    <Ionicons name="time-outline" size={13} color="#CBD5E1" />
+                    <Text style={styles.metaText}>{formatTime(report.created_at)}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.reportStats}>
+                  <View style={styles.stat}>
+                    <Text style={styles.statValue}>{report.numero_vitimas || 0}</Text>
+                    <Text style={styles.statLabel}>Vítimas</Text>
+                  </View>
+                  <View style={styles.stat}>
+                    <Text style={styles.statValue}>{report.numero_veiculos || 0}</Text>
+                    <Text style={styles.statLabel}>Veículos</Text>
+                  </View>
+                  <View style={styles.stat}>
+                    <Text style={styles.statValue}>{report.latitude?.toFixed(3) || '-'}</Text>
+                    <Text style={styles.statLabel}>Latitude</Text>
+                  </View>
+                  <View style={styles.stat}>
+                    <Text style={styles.statValue}>{report.longitude?.toFixed(3) || '-'}</Text>
+                    <Text style={styles.statLabel}>Longitude</Text>
+                  </View>
+                </View>
+                <View style={styles.cardActionsRow}>
+                  <TouchableOpacity
+                    style={styles.cardPrimaryAction}
+                    onPress={() => navigation.navigate('AccidentDetail', { accidentId: report._id || report.acidente_id })}
+                  >
+                    <Text style={styles.cardPrimaryActionText}>Ver detalhes</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.cardSecondaryAction}
+                    onPress={() => navigation.navigate('Map', { focusAccidentId: report._id || report.acidente_id })}
+                  >
+                    <Ionicons name="map-outline" size={16} color={COLORS.white} />
+                    <Text style={styles.cardSecondaryActionText}>Ver no mapa</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
             );
           })
         )}
@@ -173,34 +213,139 @@ export default function MyReportsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bgDark },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bgDark },
+  container: { flex: 1, backgroundColor: '#05070B' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#05070B' },
   loadingText: { color: COLORS.white, marginTop: SPACING.md, fontSize: FONTS.sm },
-  header: { paddingTop: 60, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md },
-  backButton: { marginBottom: SPACING.sm },
-  backText: { color: COLORS.blueLight, fontSize: FONTS.sm },
-  title: { fontSize: FONTS.xl, fontWeight: 'bold', color: COLORS.white },
-  subtitle: { fontSize: FONTS.sm, color: COLORS.gray, marginTop: 2 },
+  header: {
+    paddingTop: 54,
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  headerButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerEyebrow: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  title: { fontSize: FONTS.lg, fontWeight: '800', color: COLORS.white },
+  subtitle: { fontSize: FONTS.xs, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   list: { flex: 1 },
-  listContent: { padding: SPACING.lg, paddingTop: SPACING.sm },
-  emptyState: { alignItems: 'center', paddingTop: 60 },
-  emptyTitle: { fontSize: FONTS.lg, fontWeight: 'bold', color: COLORS.white, marginBottom: SPACING.xs },
-  emptyText: { fontSize: FONTS.sm, color: COLORS.gray, textAlign: 'center', marginBottom: SPACING.lg },
-  reportButton: { backgroundColor: COLORS.red, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, borderRadius: RADIUS.md },
-  reportButtonText: { color: COLORS.white, fontWeight: 'bold', fontSize: FONTS.md },
-  reportCard: { padding: SPACING.sm },
+  listContent: { padding: SPACING.lg, paddingTop: SPACING.sm, paddingBottom: 36 },
+  emptyState: {
+    alignItems: 'center',
+    paddingTop: 70,
+    backgroundColor: '#10161F',
+    borderRadius: 28,
+    paddingHorizontal: 22,
+    paddingBottom: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  emptyIconWrap: {
+    width: 78,
+    height: 78,
+    borderRadius: 26,
+    backgroundColor: '#0B72FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.md,
+  },
+  emptyTitle: { fontSize: FONTS.lg, fontWeight: '800', color: COLORS.white, marginBottom: SPACING.xs },
+  emptyText: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.68)', textAlign: 'center', marginBottom: SPACING.lg, lineHeight: 20 },
+  reportButton: {
+    backgroundColor: '#FF7A00',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: 18
+  },
+  reportButtonText: { color: COLORS.white, fontWeight: '800', fontSize: FONTS.md },
+  reportCard: {
+    backgroundColor: '#10161F',
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: 18,
+    marginBottom: 14,
+  },
   reportHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
   gravidadeBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.sm },
   gravidadeText: { color: COLORS.white, fontSize: FONTS.xs, fontWeight: 'bold', textTransform: 'uppercase' },
   statusBadge: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.sm },
   statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 4 },
   statusText: { fontSize: FONTS.xs, fontWeight: '600' },
-  reportType: { fontSize: FONTS.md, fontWeight: 'bold', color: COLORS.black, marginBottom: 4, textTransform: 'capitalize' },
-  reportDesc: { fontSize: FONTS.sm, color: COLORS.gray, marginBottom: SPACING.sm },
-  reportMeta: { flexDirection: 'row', gap: SPACING.md, marginBottom: SPACING.sm },
-  metaItem: { fontSize: FONTS.xs, color: COLORS.gray },
-  reportStats: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: '#F1F5F9', borderRadius: RADIUS.sm, padding: SPACING.sm },
+  reportType: { fontSize: 18, fontWeight: '800', color: COLORS.white, marginBottom: 6, textTransform: 'capitalize' },
+  reportDesc: { fontSize: FONTS.sm, color: 'rgba(255,255,255,0.68)', marginBottom: SPACING.sm, lineHeight: 20 },
+  reportMetaRow: { flexDirection: 'row', gap: 10, marginBottom: SPACING.md, flexWrap: 'wrap' },
+  metaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  metaText: {
+    fontSize: FONTS.xs,
+    color: '#CBD5E1',
+    marginLeft: 6,
+  },
+  reportStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 18,
+    padding: SPACING.sm
+  },
+  cardActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: SPACING.md,
+  },
+  cardPrimaryAction: {
+    flex: 1,
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: '#0B72FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardPrimaryActionText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  cardSecondaryAction: {
+    minWidth: 126,
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    paddingHorizontal: 14,
+  },
+  cardSecondaryActionText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: '700',
+    marginLeft: 6,
+  },
   stat: { alignItems: 'center' },
-  statValue: { fontSize: FONTS.md, fontWeight: 'bold', color: COLORS.black },
-  statLabel: { fontSize: 10, color: COLORS.gray, textTransform: 'uppercase', marginTop: 2 },
+  statValue: { fontSize: FONTS.md, fontWeight: '800', color: COLORS.white },
+  statLabel: { fontSize: 10, color: 'rgba(255,255,255,0.56)', textTransform: 'uppercase', marginTop: 2 },
 });

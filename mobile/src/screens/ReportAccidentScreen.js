@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Animated,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  StatusBar
 } from 'react-native';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
@@ -21,12 +22,12 @@ import { useToast } from '../components/Toast';
 
 const GRAVIDADES = ['LEVE', 'MODERADO', 'GRAVE', 'FATAL'];
 const TIPOS = [
-  { id: 'COLISAO_FRONTAL', label: 'Colisão Frontal', icon: 'car-sport' },
-  { id: 'COLISAO_TRASEIRA', label: 'Colisão Traseira', icon: 'car' },
-  { id: 'ATROPELAMENTO', label: 'Atropelamento', icon: 'walk' },
-  { id: 'CAPOTAMENTO', label: 'Capotamento', icon: 'refresh-circle' },
-  { id: 'CHOQUE_OBSTACULO', label: 'Choque em Obstáculo', icon: 'warning' },
-  { id: 'OUTRO', label: 'Outro', icon: 'help-circle' },
+  { id: 'COLISAO_FRONTAL', label: 'Colisão Frontal', icon: 'car-sport', color: '#EF4444' },
+  { id: 'COLISAO_TRASEIRA', label: 'Colisão Traseira', icon: 'car', color: '#F59E0B' },
+  { id: 'ATROPELAMENTO', label: 'Atropelamento', icon: 'walk', color: '#3B82F6' },
+  { id: 'CAPOTAMENTO', label: 'Capotamento', icon: 'refresh-circle', color: '#F97316' },
+  { id: 'CHOQUE_OBSTACULO', label: 'Choque Obstáculo', icon: 'warning', color: '#10B981' },
+  { id: 'OUTRO', label: 'Outro', icon: 'help-circle', color: '#8B5CF6' },
 ];
 
 export default function ReportAccidentScreen({ navigation }) {
@@ -38,6 +39,7 @@ export default function ReportAccidentScreen({ navigation }) {
   const [location, setLocation] = useState(null);
   const [quickSelectedType, setQuickSelectedType] = useState(null);
   const confirmPulse = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(400)).current;
   
   const [formData, setFormData] = useState({
     tipo_acidente: '',
@@ -51,6 +53,11 @@ export default function ReportAccidentScreen({ navigation }) {
 
   useEffect(() => {
     getLocation();
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      friction: 9,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
   useEffect(() => {
@@ -166,361 +173,455 @@ export default function ReportAccidentScreen({ navigation }) {
     outputRange: ['0%', '100%'],
   });
 
+  const gpsLabel = location
+    ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
+    : 'Obtendo localização...';
+
+  const handleClose = () => {
+    Animated.timing(slideAnim, {
+      toValue: 400,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => navigation.goBack());
+  };
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.white} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Reportar Acidente</Text>
-        <View style={styles.placeholder} />
-      </View>
-
-      {/* Mode chooser */}
-      {mode === 'choose' && (
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.stepContainer}>
-            <Ionicons name="alert-circle" size={48} color={COLORS.red} style={{alignSelf:'center', marginBottom: SPACING.md}} />
-            <Text style={styles.stepTitle}>Como deseja reportar?</Text>
-            <Text style={styles.stepSubtitle}>Escolha a melhor opção para a situação</Text>
-
-            <TouchableOpacity
-              style={styles.quickReportCard}
-              activeOpacity={0.8}
-              onPress={() => setMode('quick')}
-            >
-              <View style={styles.quickReportInner}>
-                <Ionicons name="flash" size={28} color={COLORS.white} />
-                <View style={{flex:1, marginLeft: SPACING.md}}>
-                  <Text style={styles.quickReportTitle}>Reporte Rápido</Text>
-                  <Text style={styles.quickReportDesc}>Envie em segundos. Apenas selecione o tipo e pronto.</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.5)" />
-              </View>
+    <View style={styles.overlayContainer}>
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+      <TouchableOpacity 
+        style={styles.backdrop}
+        activeOpacity={1}
+        onPress={handleClose}
+      />
+      <Animated.View style={[styles.sidebarContainer, { transform: [{ translateX: slideAnim }] }]}>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={handleClose} style={styles.backButton}>
+              <Ionicons name="close" size={28} color="#1E293B" />
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.detailedReportCard}
-              activeOpacity={0.8}
-              onPress={() => setMode('detailed')}
-            >
-              <View style={styles.quickReportInner}>
-                <Ionicons name="create" size={28} color={COLORS.white} />
-                <View style={{flex:1, marginLeft: SPACING.md}}>
-                  <Text style={styles.quickReportTitle}>Reporte Detalhado</Text>
-                  <Text style={styles.quickReportDesc}>Preencha todos os detalhes do acidente.</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.5)" />
-              </View>
-            </TouchableOpacity>
-
-            <View style={[styles.locationStatus, { backgroundColor: location ? COLORS.green : COLORS.orange, marginTop: SPACING.lg }]}>
-              <Ionicons name={location ? 'location' : 'locate'} size={16} color={COLORS.white} />
-              <Text style={[styles.locationText, {marginLeft: 6}]}>
-                {location ? 'GPS pronto' : 'Obtendo localização...'}
-              </Text>
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerEyebrow}>Reporte estilo mapa</Text>
+              <Text style={styles.headerTitle}>Reportar Acidente</Text>
             </View>
           </View>
-        </ScrollView>
-      )}
 
-      {/* Quick mode */}
-      {mode === 'quick' && (
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.stepContainer}>
-            <Ionicons name="flash" size={40} color={COLORS.orange} style={{alignSelf:'center', marginBottom: SPACING.sm}} />
-            <Text style={styles.stepTitle}>Reporte Rápido</Text>
-            <Text style={styles.stepSubtitle}>
-              {quickSelectedType ? 'Confirme o envio do reporte' : 'Selecione o tipo de acidente'}
-            </Text>
-
-            {/* Phase 1: Type selection grid */}
-            {!quickSelectedType && (
-              <View style={styles.optionsGrid}>
-                {TIPOS.map((tipo) => (
-                  <TouchableOpacity
-                    key={tipo.id}
-                    style={[styles.optionCard, { borderColor: COLORS.orange }]}
-                    onPress={() => {
-                      setQuickSelectedType(tipo);
-                      // Animate pulse
-                      Animated.loop(
-                        Animated.sequence([
-                          Animated.timing(confirmPulse, { toValue: 1.04, duration: 600, useNativeDriver: true }),
-                          Animated.timing(confirmPulse, { toValue: 1, duration: 600, useNativeDriver: true }),
-                        ])
-                      ).start();
-                    }}
-                    disabled={loading}
-                  >
-                    <Ionicons name={tipo.icon} size={32} color={COLORS.white} style={styles.optionIcon} />
-                    <Text style={styles.optionLabel}>{tipo.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            {/* Phase 2: Confirmation card */}
-            {quickSelectedType && !loading && (
-              <Animated.View style={[styles.confirmCard, { transform: [{ scale: confirmPulse }] }]}>
-                <View style={styles.confirmIconRow}>
-                  <View style={styles.confirmIconCircle}>
-                    <Ionicons name={quickSelectedType.icon} size={40} color={COLORS.white} />
+          {mode === 'choose' && (
+            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+              <View style={styles.heroCard}>
+                <View style={styles.heroIcon}>
+                  <Ionicons name="warning" size={24} color={COLORS.white} />
+                </View>
+                <Text style={styles.heroTitle}>Reportar Acidente</Text>
+                <Text style={styles.heroSubtitle}>Selecione Localização & Confirme</Text>
+                <View style={styles.heroStepsRow}>
+                  <View style={styles.heroStepItem}>
+                    <View style={styles.heroStepCircle}>
+                      <Text style={styles.heroStepNumber}>1</Text>
+                    </View>
+                    <Text style={styles.heroStepText}>Localizar</Text>
+                  </View>
+                  <View style={styles.heroStepDivider} />
+                  <View style={styles.heroStepItem}>
+                    <View style={styles.heroStepCircle}>
+                      <Text style={styles.heroStepNumber}>2</Text>
+                    </View>
+                    <Text style={styles.heroStepText}>Detalhar</Text>
+                  </View>
+                  <View style={styles.heroStepDivider} />
+                  <View style={styles.heroStepItem}>
+                    <View style={styles.heroStepCircle}>
+                      <Text style={styles.heroStepNumber}>3</Text>
+                    </View>
+                    <Text style={styles.heroStepText}>Enviar</Text>
                   </View>
                 </View>
-                <Text style={styles.confirmType}>{quickSelectedType.label}</Text>
-                <Text style={styles.confirmDesc}>O reporte será enviado com a sua localização atual e classificado como GRAVE.</Text>
-
-                <View style={styles.confirmDetails}>
-                  <View style={styles.confirmDetailItem}>
-                    <Ionicons name="location" size={16} color={COLORS.green} />
-                    <Text style={styles.confirmDetailText}>
-                      {location
-                        ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
-                        : 'Obtendo GPS...'}
-                    </Text>
-                  </View>
-                  <View style={styles.confirmDetailItem}>
-                    <Ionicons name="alert-circle" size={16} color={COLORS.orange} />
-                    <Text style={styles.confirmDetailText}>Gravidade: GRAVE</Text>
-                  </View>
-                  <View style={styles.confirmDetailItem}>
-                    <Ionicons name="time" size={16} color={COLORS.blue} />
-                    <Text style={styles.confirmDetailText}>Agora</Text>
-                  </View>
-                </View>
-
-                <KahootButton
-                  title="Confirmar e Enviar"
-                  onPress={() => {
-                    confirmPulse.stopAnimation();
-                    handleQuickSubmit(quickSelectedType.id);
-                  }}
-                  color={COLORS.red}
-                  size="lg"
-                  icon={<Ionicons name="send" size={18} color={COLORS.white} style={{marginRight: 6}} />}
-                  style={{marginTop: SPACING.md}}
-                />
-                <KahootButton
-                  title="Alterar Tipo"
-                  onPress={() => { confirmPulse.stopAnimation(); setQuickSelectedType(null); }}
-                  color={COLORS.gray}
-                  size="md"
-                  style={{marginTop: SPACING.sm}}
-                />
-              </Animated.View>
-            )}
-
-            {loading && (
-              <View style={styles.confirmCard}>
-                <ActivityIndicator size="large" color={COLORS.orange} style={{marginBottom: SPACING.md}} />
-                <Text style={styles.confirmType}>Enviando Reporte...</Text>
-                <Text style={styles.confirmDesc}>Aguarde enquanto enviamos o seu reporte rápido. Os agentes serão notificados.</Text>
               </View>
-            )}
 
-            <View style={[styles.locationStatus, { backgroundColor: location ? COLORS.green : COLORS.orange }]}>
-              <Ionicons name={location ? 'location' : 'locate'} size={16} color={COLORS.white} />
-              <Text style={[styles.locationText, {marginLeft: 6}]}>
-                {location ? 'GPS pronto' : 'Obtendo localização...'}
-              </Text>
-            </View>
-
-            <KahootButton
-              title="Voltar"
-              onPress={() => { setQuickSelectedType(null); confirmPulse.stopAnimation(); setMode('choose'); }}
-              color={COLORS.gray}
-              size="md"
-              style={{marginTop: SPACING.md}}
-            />
-          </View>
-          <View style={{height: 40}} />
-        </ScrollView>
-      )}
-
-      {/* Detailed mode */}
-      {mode === 'detailed' && (
-      <>
-      {/* Progress Bar */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBg}>
-          <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
-        </View>
-        <Text style={styles.progressText}>Passo {step} de 3</Text>
-      </View>
-
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Step 1: Type Selection */}
-        {step === 1 && (
-          <View style={styles.stepContainer}>
-            <Text style={styles.stepTitle}>Qual o tipo de acidente?</Text>
-            <Text style={styles.stepSubtitle}>Selecione uma opção</Text>
-            
-            <View style={styles.optionsGrid}>
-              {TIPOS.map((tipo) => (
+              <View style={styles.modeSection}>
+                <Text style={styles.sectionLabel}>Escolha o modo</Text>
                 <TouchableOpacity
-                  key={tipo.id}
-                  style={[
-                    styles.optionCard,
-                    formData.tipo_acidente === tipo.id && styles.optionCardSelected
-                  ]}
-                  onPress={() => setFormData({ ...formData, tipo_acidente: tipo.id })}
+                  style={[styles.modeCard, styles.modeCardPrimary]}
+                  activeOpacity={0.8}
+                  onPress={() => setMode('quick')}
                 >
-                  <Ionicons name={tipo.icon} size={32} color={formData.tipo_acidente === tipo.id ? COLORS.purple : COLORS.white} style={styles.optionIcon} />
-                  <Text style={[
-                    styles.optionLabel,
-                    formData.tipo_acidente === tipo.id && styles.optionLabelSelected
-                  ]}>
-                    {tipo.label}
-                  </Text>
+                  <View style={styles.modeCardHeader}>
+                    <View style={styles.modeCardIcon}>
+                      <Ionicons name="flash" size={24} color={COLORS.white} />
+                    </View>
+                    <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.7)" />
+                  </View>
+                  <Text style={styles.modeCardTitle}>Reporte rápido</Text>
+                  <Text style={styles.modeCardDesc}>Selecione o tipo e envie em segundos, no estilo do botão rápido do mock.</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
 
-            <KahootButton
-              title="Próximo"
-              onPress={() => setStep(2)}
-              color={COLORS.blue}
-              size="lg"
-              disabled={!formData.tipo_acidente}
-              style={styles.nextButton}
-            />
-          </View>
-        )}
+                <TouchableOpacity
+                  style={[styles.modeCard, styles.modeCardSecondary]}
+                  activeOpacity={0.8}
+                  onPress={() => setMode('detailed')}
+                >
+                  <View style={styles.modeCardHeader}>
+                    <View style={[styles.modeCardIcon, styles.modeCardIconSecondary]}>
+                      <Ionicons name="create" size={24} color={COLORS.white} />
+                    </View>
+                    <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.7)" />
+                  </View>
+                  <Text style={styles.modeCardTitle}>Reporte detalhado</Text>
+                  <Text style={styles.modeCardDesc}>Abra o fluxo completo para preencher gravidade, descrição, veículos e vítimas.</Text>
+                </TouchableOpacity>
+              </View>
 
-        {/* Step 2: Gravity Selection */}
-        {step === 2 && (
-          <View style={styles.stepContainer}>
-            <Text style={styles.stepTitle}>Qual a gravidade?</Text>
-            <Text style={styles.stepSubtitle}>Selecione com base na situação</Text>
-            
-            <View style={styles.gravityOptions}>
-              {GRAVIDADES.map((grav) => {
-                const colors = {
-                  'LEVE': COLORS.green,
-                  'MODERADO': COLORS.yellow,
-                  'GRAVE': COLORS.orange,
-                  'FATAL': COLORS.red,
-                };
-                return (
+              <View style={[styles.locationCard, location ? styles.locationCardReady : styles.locationCardLoading]}>
+                <View style={styles.locationCardIcon}>
+                  <Ionicons name={location ? 'location' : 'locate'} size={18} color={COLORS.white} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.locationCardTitle}>{location ? 'GPS pronto' : 'A procurar GPS'}</Text>
+                  <Text style={styles.locationCardText}>{gpsLabel}</Text>
+                </View>
+              </View>
+            </ScrollView>
+          )}
+
+          {mode === 'quick' && (
+            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+              <View style={styles.quickHeroCard}>
+                <View style={styles.quickHeroBadge}>
+                  <Ionicons name="flash" size={18} color={COLORS.white} />
+                  <Text style={styles.quickHeroBadgeText}>Reporte rápido</Text>
+                </View>
+                <Text style={styles.quickHeroTitle}>Qual é o tipo de acidente?</Text>
+                <Text style={styles.quickHeroSubtitle}>
+                  {quickSelectedType ? 'Confirme o envio do reporte' : 'Selecione o tipo de acidente'}
+                </Text>
+              </View>
+
+              {!quickSelectedType && (
+                <View style={styles.reportGrid}>
+                  {TIPOS.map((tipo) => (
+                    <TouchableOpacity
+                      key={tipo.id}
+                      style={styles.reportGridCard}
+                      onPress={() => {
+                        setQuickSelectedType(tipo);
+                        Animated.loop(
+                          Animated.sequence([
+                            Animated.timing(confirmPulse, { toValue: 1.04, duration: 600, useNativeDriver: true }),
+                            Animated.timing(confirmPulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+                          ])
+                        ).start();
+                      }}
+                      disabled={loading}
+                    >
+                      <View style={[styles.reportCircleIcon, { borderColor: tipo.color }]}>
+                        <Ionicons name={tipo.icon} size={32} color={COLORS.white} />
+                      </View>
+                      <Text style={styles.reportGridText}>{tipo.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {quickSelectedType && !loading && (
+                <Animated.View style={[styles.confirmCard, { transform: [{ scale: confirmPulse }] }]}>
+                  <View style={styles.confirmTopRow}>
+                    <View style={[styles.confirmIconCircle, { backgroundColor: quickSelectedType.color }]}>
+                      <Ionicons name={quickSelectedType.icon} size={34} color={COLORS.white} />
+                    </View>
+                    <View style={styles.confirmTopText}>
+                      <Text style={styles.confirmType}>{quickSelectedType.label}</Text>
+                      <Text style={styles.confirmDesc}>O reporte será enviado com a sua localização atual e marcado como GRAVE.</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.confirmDetails}>
+                    <View style={styles.confirmDetailItem}>
+                      <Ionicons name="location" size={16} color={COLORS.greenLight} />
+                      <Text style={styles.confirmDetailText}>{gpsLabel}</Text>
+                    </View>
+                    <View style={styles.confirmDetailItem}>
+                      <Ionicons name="alert-circle" size={16} color={COLORS.orangeLight} />
+                      <Text style={styles.confirmDetailText}>Gravidade: GRAVE</Text>
+                    </View>
+                    <View style={styles.confirmDetailItem}>
+                      <Ionicons name="time" size={16} color={COLORS.blueLight} />
+                      <Text style={styles.confirmDetailText}>Envio imediato</Text>
+                    </View>
+                  </View>
+
                   <TouchableOpacity
-                    key={grav}
-                    style={[
-                      styles.gravityCard,
-                      { backgroundColor: colors[grav] },
-                      formData.gravidade === grav && styles.gravityCardSelected
-                    ]}
-                    onPress={() => setFormData({ ...formData, gravidade: grav })}
+                    style={styles.primarySubmitButton}
+                    onPress={() => {
+                      confirmPulse.stopAnimation();
+                      handleQuickSubmit(quickSelectedType.id);
+                    }}
+                    activeOpacity={0.9}
                   >
-                    <Text style={styles.gravityText}>{grav}</Text>
-                    {formData.gravidade === grav && (
-                      <Feather name="check" size={16} color={COLORS.white} />
-                    )}
+                    <Text style={styles.primarySubmitButtonText}>ENVIAR REPORTE</Text>
+                    <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
                   </TouchableOpacity>
-                );
-              })}
-            </View>
 
-            <View style={styles.buttonRow}>
-              <KahootButton
-                title="Voltar"
-                onPress={() => setStep(1)}
-                color={COLORS.gray}
-                size="md"
-                style={styles.backBtn}
-              />
-              <KahootButton
-                title="Próximo"
-                onPress={() => setStep(3)}
-                color={COLORS.blue}
-                size="md"
-                style={styles.nextBtn}
-              />
+                  <TouchableOpacity
+                    style={styles.secondarySubmitButton}
+                    onPress={() => { confirmPulse.stopAnimation(); setQuickSelectedType(null); }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.secondarySubmitButtonText}>Alterar Tipo</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              )}
+
+              {loading && (
+                <View style={styles.confirmCard}>
+                  <ActivityIndicator size="large" color={COLORS.orange} style={{marginBottom: SPACING.md}} />
+                  <Text style={styles.confirmType}>Enviando Reporte...</Text>
+                  <Text style={styles.confirmDesc}>Aguarde enquanto enviamos o seu reporte rápido. Os agentes serão notificados.</Text>
+                </View>
+              )}
+
+              <View style={[styles.locationCard, location ? styles.locationCardReady : styles.locationCardLoading]}>
+                <View style={styles.locationCardIcon}>
+                  <Ionicons name={location ? 'location' : 'locate'} size={18} color={COLORS.white} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.locationCardTitle}>{location ? 'GPS pronto' : 'A procurar GPS'}</Text>
+                  <Text style={styles.locationCardText}>{gpsLabel}</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.backToModesButton}
+                onPress={() => { setQuickSelectedType(null); confirmPulse.stopAnimation(); setMode('choose'); }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="arrow-back" size={18} color={COLORS.white} />
+                <Text style={styles.backToModesText}>Voltar</Text>
+              </TouchableOpacity>
+              <View style={{height: 40}} />
+            </ScrollView>
+          )}
+
+          {/* Detailed mode */}
+          {mode === 'detailed' && (
+          <>
+          {/* Progress Bar */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBg}>
+              <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
             </View>
+            <Text style={styles.progressText}>Passo {step} de 3</Text>
           </View>
-        )}
 
-        {/* Step 3: Details */}
-        {step === 3 && (
-          <View style={styles.stepContainer}>
-            <Text style={styles.stepTitle}>Detalhes do Acidente</Text>
-            <Text style={styles.stepSubtitle}>Preencha as informações</Text>
+          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            {/* Step 1: Type Selection */}
+            {step === 1 && (
+              <View style={styles.stepContainer}>
+                <Text style={styles.stepTitle}>Qual o tipo de acidente?</Text>
+                <Text style={styles.stepSubtitle}>Selecione uma opção</Text>
+                
+                <View style={styles.optionsGrid}>
+                  {TIPOS.map((tipo) => (
+                    <TouchableOpacity
+                      key={tipo.id}
+                      style={[
+                        styles.optionCard,
+                        formData.tipo_acidente === tipo.id && styles.optionCardSelected
+                      ]}
+                      onPress={() => setFormData({ ...formData, tipo_acidente: tipo.id })}
+                    >
+                      <View style={[
+                        styles.optionCircleIcon,
+                        { borderColor: tipo.color },
+                        formData.tipo_acidente === tipo.id && { borderWidth: 4 }
+                      ]}>
+                        <Ionicons name={tipo.icon} size={32} color={COLORS.white} />
+                      </View>
+                      <Text style={styles.optionLabel}>
+                        {tipo.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
-            <KahootInput
-              label="Descrição"
-              value={formData.descricao}
-              onChangeText={(text) => setFormData({ ...formData, descricao: text })}
-              placeholder="Descreva o que aconteceu..."
-            />
-
-            <View style={styles.numberRow}>
-              <View style={styles.numberInput}>
-                <KahootInput
-                  label="Nº Veículos"
-                  value={formData.numero_veiculos}
-                  onChangeText={(text) => setFormData({ ...formData, numero_veiculos: text })}
-                  keyboardType="numeric"
+                <KahootButton
+                  title="Próximo"
+                  onPress={() => setStep(2)}
+                  color={COLORS.blue}
+                  size="lg"
+                  disabled={!formData.tipo_acidente}
+                  style={styles.nextButton}
                 />
               </View>
-              <View style={styles.numberInput}>
-                <KahootInput
-                  label="Nº Vítimas"
-                  value={formData.numero_vitimas}
-                  onChangeText={(text) => setFormData({ ...formData, numero_vitimas: text })}
-                  keyboardType="numeric"
-                />
+            )}
+
+            {/* Step 2: Gravity Selection */}
+            {step === 2 && (
+              <View style={styles.stepContainer}>
+                <Text style={styles.stepTitle}>Qual a gravidade?</Text>
+                <Text style={styles.stepSubtitle}>Selecione com base na situação</Text>
+                
+                <View style={styles.gravityOptions}>
+                  {GRAVIDADES.map((grav) => {
+                    const colors = {
+                      'LEVE': COLORS.green,
+                      'MODERADO': COLORS.yellow,
+                      'GRAVE': COLORS.orange,
+                      'FATAL': COLORS.red,
+                    };
+                    return (
+                      <TouchableOpacity
+                        key={grav}
+                        style={[
+                          styles.gravityCard,
+                          { backgroundColor: colors[grav] },
+                          formData.gravidade === grav && styles.gravityCardSelected
+                        ]}
+                        onPress={() => setFormData({ ...formData, gravidade: grav })}
+                      >
+                        <Text style={styles.gravityText}>{grav}</Text>
+                        {formData.gravidade === grav && (
+                          <Feather name="check" size={16} color={COLORS.white} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <View style={styles.buttonRow}>
+                  <KahootButton
+                    title="Voltar"
+                    onPress={() => setStep(1)}
+                    color={COLORS.gray}
+                    size="md"
+                    style={styles.backBtn}
+                  />
+                  <KahootButton
+                    title="Próximo"
+                    onPress={() => setStep(3)}
+                    color={COLORS.blue}
+                    size="md"
+                    style={styles.nextBtn}
+                  />
+                </View>
               </View>
-            </View>
+            )}
 
-            {/* Location Status */}
-            <View style={[
-              styles.locationStatus,
-              { backgroundColor: location ? COLORS.green : COLORS.orange }
-            ]}>
-              <Text style={styles.locationText}>
-                {location ? 'Localização obtida' : 'Obtendo localização...'}
-              </Text>
-            </View>
+            {/* Step 3: Details */}
+            {step === 3 && (
+              <View style={styles.stepContainer}>
+                <Text style={styles.stepTitle}>Detalhes do Acidente</Text>
+                <Text style={styles.stepSubtitle}>Preencha as informações</Text>
 
-            <View style={styles.buttonRow}>
-              <KahootButton
-                title="Voltar"
-                onPress={() => setStep(2)}
-                color={COLORS.gray}
-                size="md"
-                style={styles.backBtn}
-              />
-              <KahootButton
-                title={loading ? 'Enviando...' : 'Enviar Reporte'}
-                onPress={handleSubmit}
-                color={COLORS.green}
-                size="md"
-                disabled={loading || !formData.descricao || !location}
-                style={styles.nextBtn}
-              />
-            </View>
-          </View>
-        )}
-      </ScrollView>
-      </>
-      )}
+                <KahootInput
+                  label="Descrição"
+                  value={formData.descricao}
+                  onChangeText={(text) => setFormData({ ...formData, descricao: text })}
+                  placeholder="Descreva o que aconteceu..."
+                />
+
+                <View style={styles.numberRow}>
+                  <View style={styles.numberInput}>
+                    <KahootInput
+                      label="Nº Veículos"
+                      value={formData.numero_veiculos}
+                      onChangeText={(text) => setFormData({ ...formData, numero_veiculos: text })}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={styles.numberInput}>
+                    <KahootInput
+                      label="Nº Vítimas"
+                      value={formData.numero_vitimas}
+                      onChangeText={(text) => setFormData({ ...formData, numero_vitimas: text })}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+
+                {/* Location Status */}
+                <View style={[
+                  styles.locationStatus,
+                  { backgroundColor: location ? COLORS.green : COLORS.orange }
+                ]}>
+                  <Text style={styles.locationText}>
+                    {location ? 'Localização obtida' : 'Obtendo localização...'}
+                  </Text>
+                </View>
+
+                <View style={styles.buttonRow}>
+                  <KahootButton
+                    title="Voltar"
+                    onPress={() => setStep(2)}
+                    color={COLORS.gray}
+                    size="md"
+                    style={styles.backBtn}
+                  />
+                  <KahootButton
+                    title={loading ? 'Enviando...' : 'Enviar Reporte'}
+                    onPress={handleSubmit}
+                    color={COLORS.green}
+                    size="md"
+                    disabled={loading || !formData.descricao || !location}
+                    style={styles.nextBtn}
+                  />
+                </View>
+              </View>
+            )}
+          </ScrollView>
+          </>
+          )}
+        </View>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  overlayContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  sidebarContainer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: '85%',
+    backgroundColor: '#05070B',
+    shadowColor: '#000',
+    shadowOffset: { width: -2, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
   container: {
     flex: 1,
-    backgroundColor: COLORS.bgDark,
+    backgroundColor: '#05070B',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 50,
+    paddingTop: 54,
     paddingBottom: SPACING.md,
     paddingHorizontal: SPACING.md,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerEyebrow: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 2,
   },
   backButton: {
     padding: SPACING.sm,
@@ -532,7 +633,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: COLORS.white,
     fontSize: FONTS.lg,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   placeholder: {
     width: 60,
@@ -562,6 +663,156 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: SPACING.lg,
   },
+  heroCard: {
+    backgroundColor: '#10161F',
+    borderRadius: 28,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    marginBottom: 18,
+  },
+  heroIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FF7A00',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  heroTitle: {
+    color: COLORS.white,
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  heroSubtitle: {
+    color: 'rgba(255,255,255,0.68)',
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 8,
+  },
+  heroStepsRow: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 14,
+    padding: 10,
+  },
+  heroStepItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  heroStepCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#0B72FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 5,
+  },
+  heroStepNumber: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  heroStepText: {
+    color: '#E5E7EB',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  heroStepDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    marginHorizontal: 3,
+  },
+  modeSection: {
+    marginBottom: 18,
+  },
+  sectionLabel: {
+    color: 'rgba(255,255,255,0.62)',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  modeCard: {
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 14,
+  },
+  modeCardPrimary: {
+    backgroundColor: '#FF7A00',
+  },
+  modeCardSecondary: {
+    backgroundColor: '#0B72FF',
+  },
+  modeCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modeCardIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeCardIconSecondary: {
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  modeCardTitle: {
+    color: COLORS.white,
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  modeCardDesc: {
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  locationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 22,
+    padding: 16,
+    marginBottom: 22,
+    borderWidth: 1,
+  },
+  locationCardReady: {
+    backgroundColor: 'rgba(34,197,94,0.14)',
+    borderColor: 'rgba(34,197,94,0.25)',
+  },
+  locationCardLoading: {
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderColor: 'rgba(245,158,11,0.22)',
+  },
+  locationCardIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  locationCardTitle: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  locationCardText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    marginTop: 3,
+  },
   stepContainer: {
     paddingTop: SPACING.md,
   },
@@ -587,29 +838,100 @@ const styles = StyleSheet.create({
   },
   optionCard: {
     width: '48%',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
+    minHeight: 130,
+    backgroundColor: 'rgba(16,22,31,0.6)',
+    borderRadius: 20,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
-    borderWidth: 3,
-    borderColor: 'transparent',
+    marginBottom: 14,
+    padding: 12,
   },
   optionCardSelected: {
-    backgroundColor: COLORS.white,
-    borderColor: COLORS.green,
+    backgroundColor: 'rgba(16,22,31,0.9)',
   },
-  optionIcon: {
-    marginBottom: SPACING.sm,
+  optionCircleIcon: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(30,41,59,0.95)',
+    borderWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
   optionLabel: {
     color: COLORS.white,
-    fontSize: FONTS.sm,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     textAlign: 'center',
   },
-  optionLabelSelected: {
-    color: COLORS.purple,
+  quickHeroCard: {
+    backgroundColor: '#10161F',
+    borderRadius: 28,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    marginBottom: 18,
+  },
+  quickHeroBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,122,0,0.18)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 14,
+  },
+  quickHeroBadgeText: {
+    color: '#FDBA74',
+    marginLeft: 6,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  quickHeroTitle: {
+    color: COLORS.white,
+    fontSize: 26,
+    fontWeight: '800',
+  },
+  quickHeroSubtitle: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    marginTop: 8,
+    lineHeight: 21,
+  },
+  reportGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+  reportGridCard: {
+    width: '48%',
+    minHeight: 130,
+    borderRadius: 20,
+    backgroundColor: 'rgba(16,22,31,0.6)',
+    padding: 14,
+    marginBottom: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reportCircleIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(30,41,59,0.95)',
+    borderWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  reportGridText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   gravityOptions: {
     marginBottom: SPACING.lg,
@@ -644,36 +966,6 @@ const styles = StyleSheet.create({
   numberInput: {
     width: '48%',
   },
-  quickReportCard: {
-    backgroundColor: COLORS.red,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.md,
-    borderBottomWidth: 4,
-    borderBottomColor: 'rgba(0,0,0,0.2)',
-  },
-  detailedReportCard: {
-    backgroundColor: COLORS.blue,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.md,
-    borderBottomWidth: 4,
-    borderBottomColor: 'rgba(0,0,0,0.2)',
-  },
-  quickReportInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  quickReportTitle: {
-    color: COLORS.white,
-    fontSize: FONTS.lg,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  quickReportDesc: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: FONTS.sm,
-  },
   locationStatus: {
     flexDirection: 'row',
     padding: SPACING.md,
@@ -703,48 +995,48 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
   },
   confirmCard: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: '#10161F',
     borderRadius: RADIUS.xl || 20,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
     padding: SPACING.xl,
-    alignItems: 'center',
     marginBottom: SPACING.md,
   },
-  confirmIconRow: {
-    marginBottom: SPACING.md,
+  confirmTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
   },
   confirmIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.orange,
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    backgroundColor: '#FF7A00',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.3)',
+    marginRight: 14,
+  },
+  confirmTopText: {
+    flex: 1,
   },
   confirmType: {
     fontSize: FONTS.xl,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: COLORS.white,
-    textAlign: 'center',
     marginBottom: SPACING.xs,
   },
   confirmDesc: {
     fontSize: FONTS.sm,
-    color: 'rgba(255,255,255,0.6)',
-    textAlign: 'center',
-    marginBottom: SPACING.lg,
+    color: 'rgba(255,255,255,0.68)',
     lineHeight: 20,
   },
   confirmDetails: {
     width: '100%',
-    backgroundColor: 'rgba(0,0,0,0.15)',
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 18,
+    padding: 14,
     gap: 10,
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.md,
   },
   confirmDetailItem: {
     flexDirection: 'row',
@@ -754,5 +1046,48 @@ const styles = StyleSheet.create({
   confirmDetailText: {
     color: 'rgba(255,255,255,0.8)',
     fontSize: FONTS.sm,
+  },
+  primarySubmitButton: {
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: '#0B72FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  primarySubmitButtonText: {
+    color: COLORS.white,
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  secondarySubmitButton: {
+    marginTop: 10,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondarySubmitButtonText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  backToModesButton: {
+    marginTop: 4,
+    height: 50,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  backToModesText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

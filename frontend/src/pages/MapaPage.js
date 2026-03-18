@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -36,6 +36,7 @@ export default function MapaPage() {
   
   const [acidentes, setAcidentes] = useState([]);
   const [assistencias, setAssistencias] = useState([]);
+  const [agentesACaminho, setAgentesACaminho] = useState([]);
   const [zonas, setZonas] = useState([]);
   const [selectedAccident, setSelectedAccident] = useState(null);
   const [selectedAssist, setSelectedAssist] = useState(null);
@@ -78,7 +79,7 @@ export default function MapaPage() {
     // Handle Google Maps auth failure (invalid API key)
     window.gm_authFailure = () => {
       console.error('Google Maps authentication failed');
-      toast.error('API Key do Google Maps inválida ou sem permissões. Verifique nas Configurações.');
+      toast.error('API Key do Google Maps invÃ¡lida ou sem permissÃµes. Verifique nas ConfiguraÃ§Ãµes.');
     };
 
     window.__onGoogleMapsLoaded = () => setMapLoaded(true);
@@ -87,7 +88,7 @@ export default function MapaPage() {
     script.defer = true;
     script.onerror = () => {
       console.error('Failed to load Google Maps');
-      toast.error('Erro ao carregar Google Maps. Verifique a API Key nas configurações.');
+      toast.error('Erro ao carregar Google Maps. Verifique a API Key nas configuraÃ§Ãµes.');
     };
     document.head.appendChild(script);
   }, [apiKey]);
@@ -133,13 +134,15 @@ export default function MapaPage() {
   // Fetch data
   const fetchData = useCallback(async () => {
     try {
-      const [acidentesData, assistenciasData, zonasData] = await Promise.all([
+      const [acidentesData, assistenciasData, agentesData, zonasData] = await Promise.all([
         acidentesApi.listAtivos(),
         assistenciasApi.list({ status: 'A_CAMINHO' }),
+        acidentesApi.listTodosAgentesACaminho(),
         zonasApi.list()
       ]);
       setAcidentes(acidentesData);
       setAssistencias(assistenciasData);
+      setAgentesACaminho(Array.isArray(agentesData) ? agentesData : []);
       setZonas(zonasData);
     } catch (error) {
       console.error('Error fetching map data:', error);
@@ -186,7 +189,7 @@ export default function MapaPage() {
             assist
           });
         } else {
-          toast.error('Não foi possível calcular a rota');
+          toast.error('NÃ£o foi possÃ­vel calcular a rota');
           setRouteInfo(null);
         }
       }
@@ -295,9 +298,41 @@ export default function MapaPage() {
 
         markersRef.current.push(marker);
       });
+
+      agentesACaminho.forEach(agente => {
+        if (!agente.latitude || !agente.longitude) return;
+
+        const isArrived = agente.status === 'CHEGOU';
+        const marker = new window.google.maps.Marker({
+          position: { lat: agente.latitude, lng: agente.longitude },
+          map: mapInstanceRef.current,
+          icon: {
+            path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 6,
+            fillColor: isArrived ? '#22C55E' : '#2563EB',
+            fillOpacity: 1,
+            strokeColor: '#fff',
+            strokeWeight: 2,
+            rotation: 0
+          },
+          title: `${agente.agente_nome || 'Agente'} - ${isArrived ? 'No Local' : 'A Caminho'}`,
+          zIndex: 12
+        });
+
+        marker.addListener('click', () => {
+          const acidente = acidentes.find(a => (a._id || a.acidente_id) === agente.acidente_id);
+          if (acidente) {
+            setSelectedAccident(acidente);
+            setSelectedAssist(null);
+            clearRoute();
+          }
+        });
+
+        markersRef.current.push(marker);
+      });
     }
 
-    // Add zone overlays — polygon delimitations or circles
+    // Add zone overlays â€” polygon delimitations or circles
     if (showZones) {
       zonas.forEach(zona => {
         const color = zona.nivel_risco === 'ALTO' ? '#DC2626' : zona.nivel_risco === 'MEDIO' ? '#D97706' : '#16A34A';
@@ -309,7 +344,7 @@ export default function MapaPage() {
             strokeColor: color, strokeWeight: 2
           });
           const infoWindow = new window.google.maps.InfoWindow({
-            content: `<div style="padding:4px"><strong>${zona.nome || 'Zona'}</strong><br/><span style="font-size:11px;color:#64748b">Risco: ${zona.nivel_risco} · ${zona.total_acidentes || 0} acidentes</span></div>`
+            content: `<div style="padding:4px"><strong>${zona.nome || 'Zona'}</strong><br/><span style="font-size:11px;color:#64748b">Risco: ${zona.nivel_risco} Â· ${zona.total_acidentes || 0} acidentes</span></div>`
           });
           polygon.addListener('click', (e) => {
             infoWindow.setPosition(e.latLng);
@@ -347,7 +382,7 @@ export default function MapaPage() {
       });
     }
 
-  }, [acidentes, assistencias, zonas, showAccidents, showAssistances, showZones, showHeatmap, filterStatus, filterGravidade, mapLoaded, clearRoute, calculateRoute]);
+  }, [acidentes, assistencias, agentesACaminho, zonas, showAccidents, showAssistances, showZones, showHeatmap, filterStatus, filterGravidade, mapLoaded, clearRoute, calculateRoute]);
 
   const centerOnAccident = (acidente) => {
     if (mapInstanceRef.current) {
@@ -372,10 +407,10 @@ export default function MapaPage() {
         <div className="h-[calc(100vh-8rem)] flex items-center justify-center bg-slate-100 rounded-lg" data-testid="mapa-page">
           <div className="text-center">
             <MapPin className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-slate-700 mb-2">API Key Não Configurada</h2>
-            <p className="text-slate-500 mb-4">Configure a API Key do Google Maps nas configurações</p>
+            <h2 className="text-xl font-bold text-slate-700 mb-2">API Key NÃ£o Configurada</h2>
+            <p className="text-slate-500 mb-4">Configure a API Key do Google Maps nas configuraÃ§Ãµes</p>
             <Button asChild>
-              <a href="/configuracoes">Ir para Configurações</a>
+              <a href="/configuracoes">Ir para ConfiguraÃ§Ãµes</a>
             </Button>
           </div>
         </div>
@@ -435,7 +470,7 @@ export default function MapaPage() {
                 className="h-7 sm:h-8 text-[10px] sm:text-xs px-2 sm:px-3"
               >
                 <Ambulance className="w-3 h-3 mr-1" />
-                <span className="hidden sm:inline">Assistências</span>
+                <span className="hidden sm:inline">AssistÃªncias</span>
                 <span className="sm:hidden">Assist.</span>
               </Button>
               <Button 
@@ -474,7 +509,7 @@ export default function MapaPage() {
               <div className="flex items-center justify-between">
                 <p className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
                   <Route className="w-4 h-4 text-blue-600" />
-                  Rota da Assistência
+                  Rota da AssistÃªncia
                 </p>
                 <button onClick={clearRoute} className="p-1 rounded-lg hover:bg-slate-100">
                   <X className="w-4 h-4 text-slate-400" />
@@ -483,7 +518,7 @@ export default function MapaPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div className="p-2.5 bg-blue-50 rounded-xl text-center">
                   <p className="text-lg font-extrabold text-blue-700">{routeInfo.distance}</p>
-                  <p className="text-[10px] text-blue-500 font-medium">Distância</p>
+                  <p className="text-[10px] text-blue-500 font-medium">DistÃ¢ncia</p>
                 </div>
                 <div className="p-2.5 bg-amber-50 rounded-xl text-center">
                   <p className="text-lg font-extrabold text-amber-700">{routeInfo.duration}</p>
@@ -491,16 +526,16 @@ export default function MapaPage() {
                 </div>
               </div>
               {routeInfo.alternatives > 0 && (
-                <p className="text-[10px] text-slate-400 text-center">{routeInfo.alternatives} rota(s) alternativa(s) disponível(is)</p>
+                <p className="text-[10px] text-slate-400 text-center">{routeInfo.alternatives} rota(s) alternativa(s) disponÃ­vel(is)</p>
               )}
               <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Direções</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">DireÃ§Ãµes</p>
                 {routeInfo.steps.slice(0, 8).map((step, i) => (
                   <div key={i} className="flex items-start gap-2 p-1.5 rounded-lg hover:bg-slate-50">
                     <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] text-slate-600" dangerouslySetInnerHTML={{ __html: step.instruction }} />
-                      <p className="text-[10px] text-slate-400">{step.distance} · {step.duration}</p>
+                      <p className="text-[10px] text-slate-400">{step.distance} Â· {step.duration}</p>
                     </div>
                   </div>
                 ))}
@@ -553,7 +588,7 @@ export default function MapaPage() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Ambulance className="w-5 h-5 text-blue-600" />
-                    Assistência
+                    AssistÃªncia
                   </CardTitle>
                   <Button size="sm" variant="ghost" onClick={clearRoute}>
                     <X className="w-4 h-4" />
@@ -575,7 +610,7 @@ export default function MapaPage() {
                   <div className="p-3 bg-blue-50 rounded-xl text-center">
                     <Navigation className="w-5 h-5 text-blue-600 mx-auto mb-1" />
                     <p className="text-lg font-extrabold text-blue-700">{routeInfo.distance}</p>
-                    <p className="text-[10px] text-blue-500 font-medium">Distância</p>
+                    <p className="text-[10px] text-blue-500 font-medium">DistÃ¢ncia</p>
                   </div>
                   <div className="p-3 bg-amber-50 rounded-xl text-center">
                     <Clock className="w-5 h-5 text-amber-600 mx-auto mb-1" />
@@ -594,14 +629,14 @@ export default function MapaPage() {
                 )}
 
                 <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Direções</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">DireÃ§Ãµes</p>
                   <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                     {routeInfo.steps.map((step, i) => (
                       <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-slate-50">
                         <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-[11px] text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: step.instruction }} />
-                          <p className="text-[10px] text-slate-400 mt-0.5">{step.distance} · {step.duration}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{step.distance} Â· {step.duration}</p>
                         </div>
                       </div>
                     ))}
@@ -640,17 +675,17 @@ export default function MapaPage() {
                 </div>
                 
                 <div>
-                  <p className="text-sm font-medium text-slate-500">Descrição</p>
+                  <p className="text-sm font-medium text-slate-500">DescriÃ§Ã£o</p>
                   <p className="text-sm">{selectedAccident.descricao}</p>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm font-medium text-slate-500">Vítimas</p>
+                    <p className="text-sm font-medium text-slate-500">VÃ­timas</p>
                     <p className="text-sm font-mono">{selectedAccident.numero_vitimas}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-500">Veículos</p>
+                    <p className="text-sm font-medium text-slate-500">VeÃ­culos</p>
                     <p className="text-sm font-mono">{selectedAccident.numero_veiculos}</p>
                   </div>
                 </div>
@@ -739,3 +774,5 @@ export default function MapaPage() {
     </Layout>
   );
 }
+
+

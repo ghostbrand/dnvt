@@ -173,4 +173,18 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ telefone, code })
   }),
+
+  // Configurações
+  getGoogleMapsKey: (token) => fetchWithAuth('/configuracoes/google-maps-key', {}, token),
+
+  // Generic methods
+  get: (endpoint, token) => fetchWithAuth(endpoint, {}, token),
+  post: (endpoint, data, token) => fetchWithAuth(endpoint, {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }, token),
+  patch: (endpoint, data, token) => fetchWithAuth(endpoint, {
+    method: 'PATCH',
+    body: JSON.stringify(data)
+  }, token),
 };

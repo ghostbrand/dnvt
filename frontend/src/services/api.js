@@ -62,6 +62,12 @@ export const acidentesApi = {
     const res = await fetch(`${API}/acidentes/${id}/agentes-a-caminho`, { headers: getHeaders() });
     if (!res.ok) return [];
     return res.json();
+  },
+
+  listTodosAgentesACaminho: async () => {
+    const res = await fetch(`${API}/agentes-a-caminho`, { headers: getHeaders() });
+    if (!res.ok) return [];
+    return res.json();
   }
 };
 

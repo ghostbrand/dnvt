@@ -703,6 +703,18 @@ apiRouter.get('/acidentes/:id/agentes-a-caminho', async (req, res) => {
   }
 });
 
+apiRouter.get('/agentes-a-caminho', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.json([]);
+    const col = mongoose.connection.db.collection('agent_tracking');
+    const agents = await col.find({}).sort({ updated_at: -1, confirmado_em: -1 }).toArray();
+    return res.json(agents);
+  } catch (err) {
+    console.error('DB error GET /agentes-a-caminho:', err.message);
+    res.json([]);
+  }
+});
+
 // ==================== ESTATISTICAS ENDPOINTS ====================
 apiRouter.get('/estatisticas/resumo', async (req, res) => {
   try {
@@ -1078,7 +1090,11 @@ apiRouter.get('/zonas-criticas/calcular', async (req, res) => {
 apiRouter.get('/boletins', async (req, res) => {
   try {
     if (mongoose.connection.readyState === 1) {
-      const boletins = await Boletim.find().sort({ data: -1 });
+      const query = {};
+      if (req.query.acidente_id) {
+        query.acidente_id = req.query.acidente_id;
+      }
+      const boletins = await Boletim.find(query).sort({ data: -1, createdAt: -1 });
       return res.json(boletins);
     }
   } catch (err) { console.error('DB error /boletins:', err.message); }
@@ -1492,7 +1508,27 @@ apiRouter.post('/delegacoes', async (req, res) => {
 
     // Send SMS if agent has phone
     if (agente_telefone) {
-      console.log(`[SMS] Missão delegada para ${agente_nome} (${agente_telefone}): Acidente ${acidente_id}. Aceda à aplicação DTSER para ver detalhes.`);
+      try {
+        let dbConfig = {};
+        try { dbConfig = await mongoose.connection.db.collection('configuracoes').findOne() || {}; } catch (_) {}
+        const token = dbConfig.ombala_token;
+        const senderName = dbConfig.ombala_sender_name || 'DNVT';
+        if (token) {
+          const axios = require('axios');
+          await axios.post('https://api.useombala.ao/v1/messages',
+            {
+              message: `DTSER: Foi-lhe delegada uma missão para o acidente ${acidente_id}. Abra a aplicação para ver os detalhes e dirigir-se ao local.`,
+              from: senderName,
+              to: agente_telefone
+            },
+            { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } }
+          );
+        } else {
+          console.log(`[SMS] Missão delegada para ${agente_nome} (${agente_telefone}) sem token Ombala configurado.`);
+        }
+      } catch (smsErr) {
+        console.error('Mission delegation SMS error:', smsErr.message);
+      }
     }
 
     return res.status(201).json(delegacao);
@@ -1552,7 +1588,27 @@ apiRouter.post('/delegacoes/solicitar', async (req, res) => {
       });
       // SMS to admin
       if (admin.telefone) {
-        console.log(`[SMS] Pedido de missão de ${agente_nome || 'agente'} (${agente_telefone || 'sem tel'}) para acidente ${acidente_id}. Aprove na plataforma DTSER.`);
+        try {
+          let dbConfig = {};
+          try { dbConfig = await mongoose.connection.db.collection('configuracoes').findOne() || {}; } catch (_) {}
+          const token = dbConfig.ombala_token;
+          const senderName = dbConfig.ombala_sender_name || 'DNVT';
+          if (token) {
+            const axios = require('axios');
+            await axios.post('https://api.useombala.ao/v1/messages',
+              {
+                message: `DTSER: ${agente_nome || 'Um agente'} solicitou missão para o acidente ${acidente_id}. Aprove na plataforma.`,
+                from: senderName,
+                to: admin.telefone
+              },
+              { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } }
+            );
+          } else {
+            console.log(`[SMS] Pedido de missão para admin ${admin.telefone} sem token Ombala configurado.`);
+          }
+        } catch (smsErr) {
+          console.error('Mission request SMS error:', smsErr.message);
+        }
       }
     }
 
@@ -1593,7 +1649,27 @@ apiRouter.patch('/delegacoes/:id/aprovar', async (req, res) => {
     } catch (notifErr) { console.error('Notification error:', notifErr.message); }
 
     if (delegacao.agente_telefone) {
-      console.log(`[SMS] Missão aprovada para ${delegacao.agente_nome} (${delegacao.agente_telefone}). Dirija-se ao local.`);
+      try {
+        let dbConfig = {};
+        try { dbConfig = await mongoose.connection.db.collection('configuracoes').findOne() || {}; } catch (_) {}
+        const token = dbConfig.ombala_token;
+        const senderName = dbConfig.ombala_sender_name || 'DNVT';
+        if (token) {
+          const axios = require('axios');
+          await axios.post('https://api.useombala.ao/v1/messages',
+            {
+              message: `DTSER: O seu pedido de missão foi aprovado. Dirija-se ao local do acidente ${delegacao.acidente_id}.`,
+              from: senderName,
+              to: delegacao.agente_telefone
+            },
+            { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } }
+          );
+        } else {
+          console.log(`[SMS] Missão aprovada para ${delegacao.agente_nome} (${delegacao.agente_telefone}) sem token Ombala configurado.`);
+        }
+      } catch (smsErr) {
+        console.error('Mission approval SMS error:', smsErr.message);
+      }
     }
 
     return res.json(delegacao);

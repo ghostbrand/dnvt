@@ -62,10 +62,20 @@ export async function registerForPushNotifications(token) {
     }
 
     // Get Expo push token with timeout
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-    const tokenPromise = Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined
-    );
+    let projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ||
+      Constants.easConfig?.projectId ||
+      Constants.expoConfig?.projectId;
+
+    // Validate UUID format, use fallback for dev builds
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!projectId || !uuidRegex.test(projectId)) {
+      // Use a valid fallback UUID for development builds
+      projectId = '00000000-0000-0000-0000-000000000000';
+      console.log('Using fallback projectId for development build');
+    }
+
+    const tokenPromise = Notifications.getExpoPushTokenAsync({ projectId });
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Push token timeout')), 8000)
     );

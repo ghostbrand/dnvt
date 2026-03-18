@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
@@ -55,22 +55,14 @@ const navigation = [
   { name: 'Acidentes', href: '/acidentes', icon: Car },
   { name: 'Boletins', href: '/boletins', icon: FileText },
   { name: 'Zonas', href: '/zonas-criticas', icon: AlertTriangle },
-  { name: 'Estatísticas', href: '/estatisticas', icon: BarChart3 },
+  { name: 'EstatÃ­sticas', href: '/estatisticas', icon: BarChart3 },
 ];
 
 const adminNavigation = [
   { name: 'Utilizadores', href: '/utilizadores', icon: Users },
-  { name: 'Cidadãos', href: '/cidadaos', icon: UserCheck },
-  {
-    name: 'Notificações', icon: Bell, submenu: true,
-    children: [
-      { name: 'Ao Cidadão', href: '/notificacoes/cidadao', icon: Send },
-      { name: 'Ao Agente', href: '/notificacoes/agente', icon: Radio },
-      { name: 'Histórico', href: '/notificacoes-historico', icon: History },
-    ]
-  },
-  { name: 'Histórico', href: '/historico', icon: History },
-  { name: 'Configurações', href: '/configuracoes', icon: Settings },
+  { name: 'CidadÃ£os', href: '/cidadaos', icon: UserCheck },
+  { name: 'HistÃ³rico', href: '/historico', icon: History },
+  { name: 'ConfiguraÃ§Ãµes', href: '/configuracoes', icon: Settings },
 ];
 
 const SIDEBAR_EXPANDED_W = 260;
@@ -90,6 +82,7 @@ export default function Layout({ children }) {
   const [notifSubOpen, setNotifSubOpen] = useState(false);
   const [pendingMissions, setPendingMissions] = useState(0);
   const prevPendingRef = useRef(0);
+  const missionAudioCtxRef = useRef(null);
   const notifRef = useRef(null);
   const unreadCount = notifications.filter(n => !n.lida).length;
 
@@ -142,18 +135,21 @@ export default function Layout({ children }) {
     if (!isAdmin) return;
     const playMissionSound = () => {
       try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        // Two-tone chime — distinct from accident alert
-        [660, 880].forEach((freq, i) => {
+        const ctx = missionAudioCtxRef.current || new (window.AudioContext || window.webkitAudioContext)();
+        missionAudioCtxRef.current = ctx;
+        if (ctx.state === 'suspended') ctx.resume?.();
+        // Two-tone chime â€” distinct from accident alert
+        [660, 880, 990].forEach((freq, i) => {
           const o = ctx.createOscillator();
           const g = ctx.createGain();
           o.type = 'sine';
           o.frequency.value = freq;
-          g.gain.setValueAtTime(0.3, ctx.currentTime + i * 0.2);
-          g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i * 0.2 + 0.4);
+          g.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.16);
+          g.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + i * 0.16 + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i * 0.16 + 0.35);
           o.connect(g).connect(ctx.destination);
-          o.start(ctx.currentTime + i * 0.2);
-          o.stop(ctx.currentTime + i * 0.2 + 0.4);
+          o.start(ctx.currentTime + i * 0.16);
+          o.stop(ctx.currentTime + i * 0.16 + 0.35);
         });
       } catch (_) {}
     };
@@ -285,7 +281,7 @@ export default function Layout({ children }) {
           onMouseLeave={() => setHovered(false)}
         >
           <div className="flex flex-col h-full">
-            {/* Logo Section — logo-g.png first */}
+            {/* Logo Section â€” logo-g.png first */}
             <div className={cn("border-b border-white/8 transition-all duration-300", expanded ? "px-4 pt-4 pb-3" : "px-2 pt-4 pb-3")}>
               {/* Government logo row */}
               {expanded ? (
@@ -313,7 +309,7 @@ export default function Layout({ children }) {
                   {expanded && (
                     <div>
                       <span className="text-base font-extrabold text-white tracking-tight block leading-none">DNVT</span>
-                      <span className="text-[9px] text-blue-300/60 font-semibold tracking-[0.12em] uppercase">Segurança Rodoviária</span>
+                      <span className="text-[9px] text-blue-300/60 font-semibold tracking-[0.12em] uppercase">SeguranÃ§a RodoviÃ¡ria</span>
                     </div>
                   )}
                 </Link>
@@ -356,7 +352,7 @@ export default function Layout({ children }) {
                   {expanded ? (
                     <p className="px-3 mb-2 text-[10px] font-bold text-amber-400/40 uppercase tracking-[0.15em] flex items-center gap-1.5">
                       <Shield className="w-3 h-3" />
-                      Administração
+                      AdministraÃ§Ã£o
                     </p>
                   ) : (
                     <div className="flex justify-center mb-2">
@@ -427,7 +423,7 @@ export default function Layout({ children }) {
               )}
             </nav>
 
-            {/* Collapse toggle — desktop only */}
+            {/* Collapse toggle â€” desktop only */}
             <div className="hidden lg:flex px-3 pb-1 justify-end">
               <button
                 onClick={() => { setCollapsed(!collapsed); setHovered(false); }}
@@ -510,7 +506,7 @@ export default function Layout({ children }) {
                 <Link
                   to="/acidentes"
                   className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 transition-colors border border-amber-200/60"
-                  title="Pedidos de missão pendentes"
+                  title="Pedidos de missÃ£o pendentes"
                 >
                   <Send className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
                   <span className="text-[11px] font-bold text-amber-700">{pendingMissions}</span>
@@ -551,7 +547,7 @@ export default function Layout({ children }) {
                     <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50">
                       <div className="flex items-center gap-2">
                         <Bell className="w-4 h-4 text-slate-500" />
-                        <span className="text-sm font-bold text-slate-800">Notificações</span>
+                        <span className="text-sm font-bold text-slate-800">NotificaÃ§Ãµes</span>
                         {unreadCount > 0 && (
                           <span className="px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-bold">{unreadCount} nova{unreadCount > 1 ? 's' : ''}</span>
                         )}
@@ -571,7 +567,7 @@ export default function Layout({ children }) {
                       {notifications.length === 0 ? (
                         <div className="py-8 text-center">
                           <Bell className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                          <p className="text-xs text-slate-400">Sem notificações</p>
+                          <p className="text-xs text-slate-400">Sem notificaÃ§Ãµes</p>
                         </div>
                       ) : (
                         notifications.map(n => (
@@ -623,7 +619,7 @@ export default function Layout({ children }) {
                         className="text-[11px] text-blue-600 font-semibold hover:text-blue-800 transition-colors flex items-center justify-center gap-1"
                       >
                         <Eye className="w-3 h-3" />
-                        Ver todo o histórico
+                        Ver todo o histÃ³rico
                       </Link>
                     </div>
                   </div>
@@ -656,7 +652,7 @@ export default function Layout({ children }) {
                   <DropdownMenuItem asChild>
                     <Link to="/configuracoes" className="flex items-center gap-2 cursor-pointer rounded-lg">
                       <Settings className="w-4 h-4" />
-                      Configurações
+                      ConfiguraÃ§Ãµes
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -678,3 +674,4 @@ export default function Layout({ children }) {
     </TooltipProvider>
   );
 }
+
