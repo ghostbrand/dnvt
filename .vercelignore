@@ -1,0 +1,7 @@
+mobile/
+tests/
+test_reports/
+backend_test.py
+backend_test_results.json
+test_result.md
+.git/
