@@ -3,7 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 
 // Get all agents heading to accidents
-router.get('/a-caminho', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) return res.json([]);
     
