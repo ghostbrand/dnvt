@@ -2202,27 +2202,31 @@ apiRouter.post('/rotas/verificar-acidentes', async (req, res) => {
 app.use('/api', apiRouter);
 
 // ==================== START SERVER ====================
-const PORT = process.env.PORT || 3000;
-
-server.listen(PORT, () => {
-  console.log(`DNVT Server running on port ${PORT}`);
-});
-
-// ==================== GRACEFUL SHUTDOWN ====================
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    mongoose.connection.close();
-    process.exit(0);
+// Only start server if not in serverless environment (Vercel)
+if (process.env.VERCEL !== '1') {
+  const PORT = process.env.PORT || 3000;
+  
+  server.listen(PORT, () => {
+    console.log(`DNVT Server running on port ${PORT}`);
   });
-});
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
-  server.close(() => {
-    mongoose.connection.close();
-    process.exit(0);
+  // ==================== GRACEFUL SHUTDOWN ====================
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    server.close(() => {
+      mongoose.connection.close();
+      process.exit(0);
+    });
   });
-});
 
-module.exports = { app, server, manager };
+  process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down gracefully');
+    server.close(() => {
+      mongoose.connection.close();
+      process.exit(0);
+    });
+  });
+}
+
+// Export app for Vercel serverless
+module.exports = app;

@@ -11,7 +11,7 @@ function getDevHost() {
 const DEV_HOST = getDevHost();
 export const API_URL = __DEV__
   ? `http://${DEV_HOST}:3333/api`
-  : 'https://your-production-url.com/api';
+  : 'https://SEU-BACKEND-URL.vercel.app/api'; // ⚠️ MUDA AQUI para o URL do BACKEND, não do frontend!
 
 // Fetch wrapper with auth and timeout
 export const fetchWithAuth = async (endpoint, options = {}, token) => {
