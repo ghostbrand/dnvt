@@ -69,6 +69,11 @@ const zonasRoutes = require('./src/routes/zonas');
 const delegacoesRoutes = require('./src/routes/delegacoes');
 const estatisticasRoutes = require('./src/routes/estatisticas');
 const utilizadoresRoutes = require('./src/routes/utilizadores');
+const notificacoesRoutes = require('./src/routes/notificacoes');
+const assistenciasRoutes = require('./src/routes/assistencias');
+const boletinsRoutes = require('./src/routes/boletins');
+const configuracoesRoutes = require('./src/routes/configuracoes');
+const agentesRoutes = require('./src/routes/agentes');
 
 // Health check
 app.get('/api/health', async (req, res) => {
@@ -87,6 +92,11 @@ app.use('/api/zonas-criticas', zonasRoutes);
 app.use('/api/delegacoes', delegacoesRoutes);
 app.use('/api/estatisticas', estatisticasRoutes);
 app.use('/api/utilizadores', utilizadoresRoutes);
+app.use('/api/notificacoes', notificacoesRoutes);
+app.use('/api/assistencias', assistenciasRoutes);
+app.use('/api/boletins', boletinsRoutes);
+app.use('/api/configuracoes', configuracoesRoutes);
+app.use('/api/agentes-a-caminho', agentesRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

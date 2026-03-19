@@ -63,4 +63,21 @@ router.delete('/:id', async (req, res) => {
   res.status(404).json({ detail: 'Delegação não encontrada' });
 });
 
+// Get pending requests
+router.get('/pedidos-pendentes', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      const pedidos = await mongoose.connection.db
+        .collection('pedidos_delegacao')
+        .find({ status: 'PENDENTE' })
+        .sort({ created_at: -1 })
+        .toArray();
+      return res.json(pedidos);
+    }
+  } catch (error) {
+    console.error('Erro ao buscar pedidos pendentes:', error);
+  }
+  res.json([]);
+});
+
 module.exports = router;
