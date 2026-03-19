@@ -58,23 +58,15 @@ const connectDB = async () => {
 };
 
 // ==================== ROUTES ====================
-// Import routes
-const authRoutes = require('./src/routes/auth');
-const acidentesRoutes = require('./src/routes/acidentes');
-const utilizadoresRoutes = require('./src/routes/utilizadores');
-const delegacoesRoutes = require('./src/routes/delegacoes');
-const zonasRoutes = require('./src/routes/zonas');
-const estatisticasRoutes = require('./src/routes/estatisticas');
-const notificacoesRoutes = require('./src/routes/notificacoes');
-
-// Health check
+// Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {
     await connectDB();
     res.json({ 
       status: 'ok', 
       timestamp: new Date().toISOString(),
-      database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+      database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+      message: 'DNVT API is running'
     });
   } catch (error) {
     res.status(500).json({ 
@@ -84,28 +76,25 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// API Router
-const apiRouter = express.Router();
-
-// Connect to DB before handling requests
-apiRouter.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (error) {
-    res.status(500).json({ error: 'Database connection failed' });
-  }
+// Test endpoint
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'API is working!',
+    timestamp: new Date().toISOString()
+  });
 });
 
-apiRouter.use('/auth', authRoutes);
-apiRouter.use('/acidentes', acidentesRoutes);
-apiRouter.use('/utilizadores', utilizadoresRoutes);
-apiRouter.use('/delegacoes', delegacoesRoutes);
-apiRouter.use('/zonas', zonasRoutes);
-apiRouter.use('/estatisticas', estatisticasRoutes);
-apiRouter.use('/notificacoes', notificacoesRoutes);
-
-app.use('/api', apiRouter);
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'DNVT Backend API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      test: '/api/test'
+    }
+  });
+});
 
 // 404 handler
 app.use((req, res) => {
