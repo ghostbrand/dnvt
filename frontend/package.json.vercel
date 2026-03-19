@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "build": "npm install --legacy-peer-deps && DISABLE_ESLINT_PLUGIN=true npm run build"
+  }
+}
