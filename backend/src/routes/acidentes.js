@@ -52,10 +52,29 @@ router.get('/ativos', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     if (mongoose.connection.readyState === 1) {
-      let acidente = await Acidente.findById(req.params.id);
-      if (!acidente) {
-        acidente = await Acidente.findOne({ acidente_id: req.params.id });
+      const id = req.params.id;
+      let acidente = null;
+      
+      // Try to find by MongoDB _id
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        acidente = await Acidente.findById(id)
+          .populate('zona_critica')
+          .populate('reportado_por', 'name email')
+          .populate('validado_por', 'name email')
+          .populate('atendido_por', 'name email')
+          .populate('resolvido_por', 'name email');
       }
+      
+      // If not found, try by acidente_id field
+      if (!acidente) {
+        acidente = await Acidente.findOne({ acidente_id: id })
+          .populate('zona_critica')
+          .populate('reportado_por', 'name email')
+          .populate('validado_por', 'name email')
+          .populate('atendido_por', 'name email')
+          .populate('resolvido_por', 'name email');
+      }
+      
       if (acidente) return res.json(acidente);
     }
   } catch (error) {

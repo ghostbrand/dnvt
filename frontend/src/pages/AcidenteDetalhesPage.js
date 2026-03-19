@@ -88,6 +88,7 @@ export default function AcidenteDetalhesPage() {
   const [mapExpanded, setMapExpanded] = useState(false);
   const agentMarkersRef = useRef([]);
   const [allUsers, setAllUsers] = useState([]);
+  const [fabOpen, setFabOpen] = useState(false);
 
   // Delegation state
   const [agentesAtivos, setAgentesAtivos] = useState([]);
@@ -473,37 +474,108 @@ export default function AcidenteDetalhesPage() {
                 {editMode ? 'Cancelar' : 'Editar'}
               </Button>
               {!editMode && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" className="rounded-full h-10 w-10 fixed bottom-6 right-6 z-30 shadow-lg">
-                      <MoreVertical className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" sideOffset={10} className="w-56">
-                    {acidente.status === 'REPORTADO' && (
-                      <DropdownMenuItem onClick={() => handleQuickStatus('VALIDADO')}>
-                        <CheckCircle className="w-4 h-4 mr-2 text-blue-600" />
-                        Validar
-                      </DropdownMenuItem>
+                <>
+                  {/* Floating Action Button - Menu Circular */}
+                  <div className="fixed bottom-6 right-6 z-50">
+                    {/* Overlay quando menu está aberto */}
+                    {fabOpen && (
+                      <div 
+                        className="fixed inset-0 bg-black/20 backdrop-blur-sm -z-10" 
+                        onClick={() => setFabOpen(false)}
+                      />
                     )}
-                    {['REPORTADO', 'VALIDADO'].includes(acidente.status) && (
-                      <DropdownMenuItem onClick={() => handleQuickStatus('EM_ATENDIMENTO')}>
-                        <Activity className="w-4 h-4 mr-2 text-orange-600" />
-                        Em Atendimento
-                      </DropdownMenuItem>
-                    )}
-                    {acidente.status === 'EM_ATENDIMENTO' && (
-                      <DropdownMenuItem onClick={() => handleQuickStatus('ENCERRADO')}>
-                        <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
-                        Resolver
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem onClick={() => setDeleteDialog(true)} className="text-red-600 focus:text-red-600">
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Remover
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    
+                    {/* Botões de Ação em Círculo */}
+                    <div className="relative">
+                      {/* Cadastrar Boletim */}
+                      {canCreateBoletim && canCreateBoletimNow && (
+                        <button
+                          onClick={() => { handleCreateBoletim(); setFabOpen(false); }}
+                          className={`absolute transition-all duration-300 ease-out ${
+                            fabOpen 
+                              ? 'bottom-[200px] right-0 opacity-100 scale-100' 
+                              : 'bottom-0 right-0 opacity-0 scale-0 pointer-events-none'
+                          } bg-purple-600 hover:bg-purple-700 text-white rounded-full h-12 w-12 flex items-center justify-center shadow-lg hover:shadow-xl`}
+                          title="Cadastrar Boletim"
+                        >
+                          <FileText className="w-5 h-5" />
+                        </button>
+                      )}
+                      
+                      {/* Validar */}
+                      {acidente.status === 'REPORTADO' && (
+                        <button
+                          onClick={() => { handleQuickStatus('VALIDADO'); setFabOpen(false); }}
+                          className={`absolute transition-all duration-300 ease-out ${
+                            fabOpen 
+                              ? 'bottom-[150px] right-[50px] opacity-100 scale-100' 
+                              : 'bottom-0 right-0 opacity-0 scale-0 pointer-events-none'
+                          } bg-blue-600 hover:bg-blue-700 text-white rounded-full h-12 w-12 flex items-center justify-center shadow-lg hover:shadow-xl`}
+                          style={{ transitionDelay: fabOpen ? '50ms' : '0ms' }}
+                          title="Validar"
+                        >
+                          <CheckCircle className="w-5 h-5" />
+                        </button>
+                      )}
+                      
+                      {/* Em Atendimento */}
+                      {['REPORTADO', 'VALIDADO'].includes(acidente.status) && (
+                        <button
+                          onClick={() => { handleQuickStatus('EM_ATENDIMENTO'); setFabOpen(false); }}
+                          className={`absolute transition-all duration-300 ease-out ${
+                            fabOpen 
+                              ? 'bottom-[100px] right-[100px] opacity-100 scale-100' 
+                              : 'bottom-0 right-0 opacity-0 scale-0 pointer-events-none'
+                          } bg-orange-600 hover:bg-orange-700 text-white rounded-full h-12 w-12 flex items-center justify-center shadow-lg hover:shadow-xl`}
+                          style={{ transitionDelay: fabOpen ? '100ms' : '0ms' }}
+                          title="Em Atendimento"
+                        >
+                          <Activity className="w-5 h-5" />
+                        </button>
+                      )}
+                      
+                      {/* Resolver */}
+                      {acidente.status === 'EM_ATENDIMENTO' && (
+                        <button
+                          onClick={() => { handleQuickStatus('ENCERRADO'); setFabOpen(false); }}
+                          className={`absolute transition-all duration-300 ease-out ${
+                            fabOpen 
+                              ? 'bottom-[50px] right-[150px] opacity-100 scale-100' 
+                              : 'bottom-0 right-0 opacity-0 scale-0 pointer-events-none'
+                          } bg-green-600 hover:bg-green-700 text-white rounded-full h-12 w-12 flex items-center justify-center shadow-lg hover:shadow-xl`}
+                          style={{ transitionDelay: fabOpen ? '150ms' : '0ms' }}
+                          title="Resolver"
+                        >
+                          <CheckCircle className="w-5 h-5" />
+                        </button>
+                      )}
+                      
+                      {/* Remover */}
+                      <button
+                        onClick={() => { setDeleteDialog(true); setFabOpen(false); }}
+                        className={`absolute transition-all duration-300 ease-out ${
+                          fabOpen 
+                            ? 'bottom-0 right-[200px] opacity-100 scale-100' 
+                            : 'bottom-0 right-0 opacity-0 scale-0 pointer-events-none'
+                        } bg-red-600 hover:bg-red-700 text-white rounded-full h-12 w-12 flex items-center justify-center shadow-lg hover:shadow-xl`}
+                        style={{ transitionDelay: fabOpen ? '200ms' : '0ms' }}
+                        title="Remover"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                      
+                      {/* Botão Principal */}
+                      <button
+                        onClick={() => setFabOpen(!fabOpen)}
+                        className={`relative bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-full h-14 w-14 flex items-center justify-center shadow-2xl hover:shadow-3xl transition-all duration-300 ${
+                          fabOpen ? 'rotate-45 scale-110' : 'rotate-0 scale-100'
+                        }`}
+                      >
+                        <Plus className="w-6 h-6" />
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
               <Dialog open={deleteDialog} onOpenChange={setDeleteDialog}>
                 <DialogContent>
