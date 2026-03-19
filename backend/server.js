@@ -2228,5 +2228,5 @@ if (process.env.VERCEL !== '1') {
   });
 }
 
-// Export app for Vercel serverless
-module.exports = app;
+// Export app and apiRouter for Vercel serverless
+module.exports = { app, apiRouter };
