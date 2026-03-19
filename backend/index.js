@@ -74,6 +74,7 @@ const assistenciasRoutes = require('./src/routes/assistencias');
 const boletinsRoutes = require('./src/routes/boletins');
 const configuracoesRoutes = require('./src/routes/configuracoes');
 const agentesRoutes = require('./src/routes/agentes');
+const historicoRoutes = require('./src/routes/historico');
 
 // Health check
 app.get('/api/health', async (req, res) => {
@@ -97,6 +98,7 @@ app.use('/api/assistencias', assistenciasRoutes);
 app.use('/api/boletins', boletinsRoutes);
 app.use('/api/configuracoes', configuracoesRoutes);
 app.use('/api/agentes-a-caminho', agentesRoutes);
+app.use('/api/historico', historicoRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

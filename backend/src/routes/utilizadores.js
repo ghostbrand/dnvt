@@ -3,6 +3,97 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+// Get current user (me)
+router.get('/me', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ detail: 'Token não fornecido' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.userId)
+      .select('-password')
+      .populate('delegacao', 'nome')
+      .populate('zonas_monitoradas', 'nome');
+    
+    if (user) return res.json(user);
+    res.status(404).json({ detail: 'Utilizador não encontrado' });
+  } catch (error) {
+    console.error('Erro ao buscar utilizador atual:', error);
+    res.status(401).json({ detail: 'Token inválido' });
+  }
+});
+
+// Update current user (me)
+router.patch('/me', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ detail: 'Token não fornecido' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const { password, ...updateData } = req.body;
+    
+    if (password) {
+      updateData.password = await bcrypt.hash(password, 10);
+    }
+    
+    const user = await User.findByIdAndUpdate(
+      decoded.userId,
+      updateData,
+      { new: true }
+    )
+      .select('-password')
+      .populate('delegacao', 'nome')
+      .populate('zonas_monitoradas', 'nome');
+    
+    if (user) return res.json(user);
+    res.status(404).json({ detail: 'Utilizador não encontrado' });
+  } catch (error) {
+    console.error('Erro ao atualizar utilizador:', error);
+    res.status(500).json({ detail: 'Erro ao atualizar utilizador' });
+  }
+});
+
+// Search citizens
+router.get('/cidadaos/buscar', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      const { q = '', pagina = 1, limite = 20, status } = req.query;
+      const query = { role: 'CIDADAO' };
+      
+      if (q) {
+        query.$or = [
+          { name: { $regex: q, $options: 'i' } },
+          { email: { $regex: q, $options: 'i' } }
+        ];
+      }
+      
+      if (status && status !== 'todos') {
+        query.status = status.toUpperCase();
+      }
+      
+      const skip = (parseInt(pagina) - 1) * parseInt(limite);
+      const users = await User.find(query)
+        .select('-password')
+        .skip(skip)
+        .limit(parseInt(limite))
+        .sort({ created_at: -1 });
+      
+      const total = await User.countDocuments(query);
+      
+      return res.json({
+        users,
+        total,
+        pagina: parseInt(pagina),
+        limite: parseInt(limite)
+      });
+    }
+  } catch (error) {
+    console.error('Erro ao buscar cidadãos:', error);
+  }
+  res.json({ users: [], total: 0, pagina: 1, limite: 20 });
+});
 
 // List all users
 router.get('/', async (req, res) => {

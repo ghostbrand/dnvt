@@ -1,12 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const Configuracao = require('../models/Configuracao');
 
 // Get Google Maps API key
 router.get('/google-maps-key', async (req, res) => {
   try {
     if (mongoose.connection.readyState === 1) {
-      const config = await mongoose.connection.db.collection('configuracoes').findOne();
+      let config = await Configuracao.findOne({});
+      
       if (config?.google_maps_api_key) {
         return res.json({ api_key: config.google_maps_api_key });
       }
@@ -17,35 +19,62 @@ router.get('/google-maps-key', async (req, res) => {
   res.json({ api_key: process.env.GOOGLE_MAPS_KEY || null });
 });
 
-// Get all configurations
+// Get configurations
 router.get('/', async (req, res) => {
   try {
     if (mongoose.connection.readyState === 1) {
-      const config = await mongoose.connection.db.collection('configuracoes').findOne();
-      if (config) return res.json(config);
+      let config = await Configuracao.findOne({});
+      
+      if (!config) {
+        config = await Configuracao.create({
+          google_maps_api_key: process.env.GOOGLE_MAPS_API_KEY || '',
+          email_notifications: true,
+          sms_notifications: false,
+          auto_assign_agents: true,
+          max_distance_km: 50
+        });
+      }
+      
+      return res.json(config);
     }
   } catch (error) {
     console.error('Erro ao buscar configurações:', error);
   }
-  res.json({ google_maps_api_key: null, sms_enabled: false });
+  res.json({
+    google_maps_api_key: process.env.GOOGLE_MAPS_API_KEY || '',
+    email_notifications: true,
+    sms_notifications: false,
+    auto_assign_agents: true,
+    max_distance_km: 50
+  });
 });
 
 // Update configurations
 router.patch('/', async (req, res) => {
   try {
     if (mongoose.connection.readyState === 1) {
-      await mongoose.connection.db.collection('configuracoes').updateOne(
-        {},
-        { $set: req.body },
-        { upsert: true }
-      );
-      const config = await mongoose.connection.db.collection('configuracoes').findOne();
+      let config = await Configuracao.findOne({});
+      
+      if (!config) {
+        config = await Configuracao.create(req.body);
+      } else {
+        config = await Configuracao.findOneAndUpdate(
+          {},
+          { $set: req.body },
+          { new: true, runValidators: true }
+        );
+      }
+      
       return res.json(config);
     }
   } catch (error) {
     console.error('Erro ao atualizar configurações:', error);
+    return res.status(500).json({ 
+      error: 'Erro ao atualizar configurações',
+      detail: error.message 
+    });
   }
-  res.status(500).json({ error: 'Erro ao atualizar configurações' });
+  res.status(500).json({ error: 'Database não conectado' });
 });
 
 module.exports = router;
