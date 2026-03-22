@@ -9,9 +9,10 @@ function getDevHost() {
 }
 
 const DEV_HOST = getDevHost();
-export const API_URL = __DEV__
-  ? `http://${DEV_HOST}:3333/api`
-  : 'https://dnvt-backend.vercel.app/api';
+export const API_URL = 'https://dnvt-backend.vercel.app/api';
+// Usar sempre Vercel em vez de localhost
+// Para dev local, descomenta a linha abaixo:
+// export const API_URL = __DEV__ ? `http://${DEV_HOST}:3333/api` : 'https://dnvt-backend.vercel.app/api';
 
 // Fetch wrapper with auth and timeout
 export const fetchWithAuth = async (endpoint, options = {}, token) => {
