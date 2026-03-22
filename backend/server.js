@@ -84,12 +84,35 @@ app.use(morgan('combined'));
 
 // CORS Configuration — use CORS_ORIGINS env var (default: allow all for dev)
 const corsOrigins = process.env.CORS_ORIGINS || '*';
-app.use(cors({
-  credentials: corsOrigins !== '*',
-  origin: corsOrigins === '*' ? true : corsOrigins.split(',').map(s => s.trim()),
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permitir requisições sem origin (mobile apps, Postman, etc)
+    if (!origin) return callback(null, true);
+    
+    // Se CORS_ORIGINS for *, permitir qualquer origem
+    if (corsOrigins === '*') return callback(null, true);
+    
+    // Verificar se a origem está na lista permitida
+    const allowedOrigins = corsOrigins.split(',').map(s => s.trim());
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400, // 24 horas de cache para preflight
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));

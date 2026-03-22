@@ -2,6 +2,7 @@ package ao.gov.dnvt.mobile
 
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -17,6 +18,10 @@ class MainActivity : ReactActivity() {
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
+    
+    // Permitir captura de tela e exibição em apps de acesso remoto
+    // Remove FLAG_SECURE para permitir TeamViewer, AnyDesk, etc
+    window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
   }
 
   /**
