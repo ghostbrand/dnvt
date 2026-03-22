@@ -4,12 +4,15 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const path = require('path');
+const Boletim = require('./src/models/Boletim');
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 // Create Express app
 const app = express();
+
+app.set('etag', false);
 
 // CORS configuration
 const allowedOrigins = process.env.CORS_ORIGINS 
@@ -29,6 +32,16 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+  }
+  next();
+});
 
 // MongoDB connection with caching for serverless
 let cachedDb = null;
@@ -75,6 +88,7 @@ const boletinsRoutes = require('./src/routes/boletins');
 const configuracoesRoutes = require('./src/routes/configuracoes');
 const agentesRoutes = require('./src/routes/agentes');
 const historicoRoutes = require('./src/routes/historico');
+const anotacoesModel = require('./src/models/Anotacao');
 
 // Health check
 app.get('/api/health', async (req, res) => {
@@ -98,7 +112,101 @@ app.use('/api/assistencias', assistenciasRoutes);
 app.use('/api/boletins', boletinsRoutes);
 app.use('/api/configuracoes', configuracoesRoutes);
 app.use('/api/agentes-a-caminho', agentesRoutes);
+app.use('/api/agentes', agentesRoutes);
 app.use('/api/historico', historicoRoutes);
+
+app.get('/api/agentes/ativos-localizacao', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.json([]);
+    const users = await mongoose.connection.db.collection('users')
+      .find({ role: { $in: ['policia', 'admin'] }, status: 'ativo' })
+      .project({ password: 0 })
+      .toArray();
+    const locData = await mongoose.connection.db.collection('agentes_a_caminho')
+      .find({ updated_at: { $gte: new Date(Date.now() - 3600000) } })
+      .toArray();
+    const locMap = {};
+    locData.forEach((item) => { locMap[item.agente_id] = item; });
+    return res.json(users.map((user) => ({
+      _id: user._id,
+      name: user.name || user.nome || '',
+      email: user.email || '',
+      telefone: user.telefone || '',
+      role: user.role || '',
+      provincia: user.provincia || '',
+      latitude: locMap[user._id.toString()]?.latitude || null,
+      longitude: locMap[user._id.toString()]?.longitude || null,
+      last_seen: locMap[user._id.toString()]?.updated_at || null
+    })));
+  } catch (error) {
+    console.error('Erro ao buscar agentes ativos com localização:', error);
+    return res.json([]);
+  }
+});
+
+app.get('/api/anotacoes', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.json([]);
+    const query = {};
+    if (req.query.acidente_id) query.acidente_id = req.query.acidente_id;
+    const anotacoes = await anotacoesModel.find(query).sort({ created_at: -1 });
+    return res.json(anotacoes);
+  } catch (error) {
+    console.error('Erro ao listar anotações:', error);
+    return res.json([]);
+  }
+});
+
+app.post('/api/anotacoes', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.status(500).json({ error: 'DB indisponível' });
+    const { acidente_id, agente_id, agente_nome, texto, fotos } = req.body;
+    if (!acidente_id || !agente_id) return res.status(400).json({ error: 'acidente_id e agente_id são obrigatórios' });
+    if (!texto && (!fotos || fotos.length === 0)) return res.status(400).json({ error: 'Texto ou foto são obrigatórios' });
+    let tipo = 'TEXTO';
+    if (texto && fotos && fotos.length > 0) tipo = 'TEXTO_FOTO';
+    else if (fotos && fotos.length > 0) tipo = 'FOTO';
+    const anotacao = await anotacoesModel.create({
+      acidente_id,
+      agente_id,
+      agente_nome: agente_nome || '',
+      tipo,
+      texto: texto || '',
+      fotos: fotos || []
+    });
+    return res.status(201).json(anotacao);
+  } catch (error) {
+    console.error('Erro ao criar anotação:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/anotacoes/upload-foto', async (req, res) => {
+  try {
+    const { base64, filename } = req.body;
+    if (!base64) return res.status(400).json({ error: 'base64 é obrigatório' });
+    const dataUri = base64.startsWith('data:') ? base64 : `data:image/jpeg;base64,${base64}`;
+    return res.json({ url: dataUri, filename: filename || `foto_${Date.now()}.jpg` });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/uploads/boletins/:filename', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(404).json({ error: 'Arquivo não encontrado' });
+    }
+    const boletim = await Boletim.findOne({ arquivo_url: { $regex: req.params.filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') } });
+    if (!boletim) {
+      return res.status(404).json({ error: 'Arquivo não encontrado' });
+    }
+    return res.redirect(302, `/api/boletins/${boletim._id}/pdf`);
+  } catch (error) {
+    console.error('Erro ao resolver arquivo de boletim:', error);
+    return res.status(404).json({ error: 'Arquivo não encontrado' });
+  }
+});
 
 // Root endpoint
 app.get('/', (req, res) => {

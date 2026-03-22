@@ -3,6 +3,8 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Configuracao = require('../models/Configuracao');
 
+const getGoogleMapsApiKey = () => process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_KEY || '';
+
 // Get Google Maps API key
 router.get('/google-maps-key', async (req, res) => {
   try {
@@ -16,7 +18,7 @@ router.get('/google-maps-key', async (req, res) => {
   } catch (error) {
     console.error('Erro ao buscar chave do Google Maps:', error);
   }
-  res.json({ api_key: process.env.GOOGLE_MAPS_KEY || null });
+  res.json({ api_key: getGoogleMapsApiKey() || null });
 });
 
 // Get configurations
@@ -27,12 +29,17 @@ router.get('/', async (req, res) => {
       
       if (!config) {
         config = await Configuracao.create({
-          google_maps_api_key: process.env.GOOGLE_MAPS_API_KEY || '',
+          google_maps_api_key: getGoogleMapsApiKey(),
           email_notifications: true,
           sms_notifications: false,
           auto_assign_agents: true,
           max_distance_km: 50
         });
+      }
+
+      if (!config.google_maps_api_key && getGoogleMapsApiKey()) {
+        config.google_maps_api_key = getGoogleMapsApiKey();
+        await config.save();
       }
       
       return res.json(config);
@@ -41,7 +48,7 @@ router.get('/', async (req, res) => {
     console.error('Erro ao buscar configurações:', error);
   }
   res.json({
-    google_maps_api_key: process.env.GOOGLE_MAPS_API_KEY || '',
+    google_maps_api_key: getGoogleMapsApiKey(),
     email_notifications: true,
     sms_notifications: false,
     auto_assign_agents: true,
