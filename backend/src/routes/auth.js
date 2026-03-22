@@ -89,4 +89,67 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// Register push token
+router.post('/push-token', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Não autorizado' });
+    }
+    
+    const jwt = require('jsonwebtoken');
+    const token = authHeader.replace('Bearer ', '');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    
+    const { push_token } = req.body;
+    if (!push_token) {
+      return res.status(400).json({ error: 'push_token é obrigatório' });
+    }
+    
+    await User.findByIdAndUpdate(decoded.userId || decoded.id, { push_token });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Push token error:', error);
+    res.status(500).json({ error: 'Erro ao registar push token' });
+  }
+});
+
+// Validate email for registration
+router.post('/validar-email', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ valido: false, erro: 'Email é obrigatório' });
+    const emailLower = email.toLowerCase().trim();
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailLower)) {
+      return res.json({ valido: false, erro: 'Formato de email inválido' });
+    }
+
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState === 1) {
+      const existing = await User.findOne({ email: emailLower });
+      if (existing) {
+        return res.json({ valido: false, erro: 'Este email já está registado' });
+      }
+    }
+
+    try {
+      const dns = require('dns').promises;
+      const domain = emailLower.split('@')[1];
+      const mxRecords = await dns.resolveMx(domain);
+      if (!mxRecords || mxRecords.length === 0) {
+        return res.json({ valido: false, erro: 'Domínio de email inválido ou inexistente' });
+      }
+    } catch (dnsErr) {
+      return res.json({ valido: false, erro: 'Domínio de email não encontrado' });
+    }
+
+    return res.json({ valido: true });
+  } catch (error) {
+    console.error('Email validation error:', error.message);
+    res.json({ valido: false, erro: 'Erro ao validar email' });
+  }
+});
+
 module.exports = router;

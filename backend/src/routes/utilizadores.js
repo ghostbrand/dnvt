@@ -205,4 +205,28 @@ router.patch('/:id/push-token', async (req, res) => {
   res.status(404).json({ detail: 'Utilizador não encontrado' });
 });
 
+// Approve user (cidadao registration)
+router.patch('/:id/aprovar', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(500).json({ error: 'DB não conectada' });
+    }
+    
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { status: 'ativo' },
+      { new: true }
+    ).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Utilizador não encontrado' });
+    }
+    
+    return res.json(user);
+  } catch (error) {
+    console.error('Erro ao aprovar utilizador:', error);
+    res.status(500).json({ error: 'Erro ao aprovar utilizador' });
+  }
+});
+
 module.exports = router;
