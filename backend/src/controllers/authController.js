@@ -3,8 +3,9 @@ const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 
 const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: `${process.env.JWT_EXPIRY_HOURS}h`
+  const expiryHours = process.env.JWT_EXPIRY_HOURS || '24';
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET || 'dnvt_super_secret_key_2024_angola_traffic_system', {
+    expiresIn: `${expiryHours}h`
   });
 };
 
