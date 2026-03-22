@@ -23,7 +23,6 @@ router.get('/urgencias', async (req, res) => {
       zona_critica: { $in: zoneIds },
       status: { $in: ['REPORTADO', 'VALIDADO', 'EM_ATENDIMENTO'] }
     })
-      .populate('zona_critica')
       .sort({ created_at: -1 });
 
     res.json(acidentes);
@@ -58,7 +57,6 @@ router.get('/:id', async (req, res) => {
       // Try to find by MongoDB _id
       if (mongoose.Types.ObjectId.isValid(id)) {
         acidente = await Acidente.findById(id)
-          .populate('zona_critica')
           .populate('reportado_por', 'name email')
           .populate('validado_por', 'name email')
           .populate('atendido_por', 'name email')
@@ -68,7 +66,6 @@ router.get('/:id', async (req, res) => {
       // If not found, try by acidente_id field
       if (!acidente) {
         acidente = await Acidente.findOne({ acidente_id: id })
-          .populate('zona_critica')
           .populate('reportado_por', 'name email')
           .populate('validado_por', 'name email')
           .populate('atendido_por', 'name email')

@@ -13,9 +13,7 @@ router.get('/me', async (req, res) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.userId)
-      .select('-password')
-      .populate('delegacao', 'nome')
-      .populate('zonas_monitoradas', 'nome');
+      .select('-password');
     
     if (user) return res.json(user);
     res.status(404).json({ detail: 'Utilizador não encontrado' });
@@ -43,9 +41,7 @@ router.patch('/me', async (req, res) => {
       updateData,
       { new: true }
     )
-      .select('-password')
-      .populate('delegacao', 'nome')
-      .populate('zonas_monitoradas', 'nome');
+      .select('-password');
     
     if (user) return res.json(user);
     res.status(404).json({ detail: 'Utilizador não encontrado' });
@@ -101,8 +97,6 @@ router.get('/', async (req, res) => {
     if (mongoose.connection.readyState === 1) {
       const users = await User.find()
         .select('-password')
-        .populate('delegacao', 'nome')
-        .populate('zonas_monitoradas', 'nome')
         .sort({ created_at: -1 });
       return res.json(users);
     }
@@ -117,9 +111,7 @@ router.get('/:id', async (req, res) => {
   try {
     if (mongoose.connection.readyState === 1) {
       const user = await User.findById(req.params.id)
-        .select('-password')
-        .populate('delegacao', 'nome')
-        .populate('zonas_monitoradas', 'nome');
+        .select('-password');
       if (user) return res.json(user);
     }
   } catch (error) {
@@ -171,9 +163,7 @@ router.put('/:id', async (req, res) => {
         updateData,
         { new: true }
       )
-        .select('-password')
-        .populate('delegacao', 'nome')
-        .populate('zonas_monitoradas', 'nome');
+        .select('-password');
       
       if (user) return res.json(user);
     }
