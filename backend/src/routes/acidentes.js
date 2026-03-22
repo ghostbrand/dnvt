@@ -15,10 +15,10 @@ router.get('/urgencias', async (req, res) => {
     if (!token) return res.json([]);
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId).populate('zonas_monitoradas');
-    if (!user || !user.zonas_monitoradas?.length) return res.json([]);
+    const user = await User.findById(decoded.userId);
+    if (!user || !user.zonas_notificacao?.length) return res.json([]);
 
-    const zoneIds = user.zonas_monitoradas.map(z => z._id);
+    const zoneIds = user.zonas_notificacao;
     const acidentes = await Acidente.find({
       zona_critica: { $in: zoneIds },
       status: { $in: ['REPORTADO', 'VALIDADO', 'EM_ATENDIMENTO'] }
@@ -56,20 +56,12 @@ router.get('/:id', async (req, res) => {
       
       // Try to find by MongoDB _id
       if (mongoose.Types.ObjectId.isValid(id)) {
-        acidente = await Acidente.findById(id)
-          .populate('reportado_por', 'name email')
-          .populate('validado_por', 'name email')
-          .populate('atendido_por', 'name email')
-          .populate('resolvido_por', 'name email');
+        acidente = await Acidente.findById(id);
       }
       
       // If not found, try by acidente_id field
       if (!acidente) {
-        acidente = await Acidente.findOne({ acidente_id: id })
-          .populate('reportado_por', 'name email')
-          .populate('validado_por', 'name email')
-          .populate('atendido_por', 'name email')
-          .populate('resolvido_por', 'name email');
+        acidente = await Acidente.findOne({ acidente_id: id });
       }
       
       if (acidente) return res.json(acidente);

@@ -807,8 +807,8 @@ apiRouter.get('/estatisticas/por-hora', async (req, res) => {
   try {
     if (mongoose.connection.readyState === 1) {
       const result = await Acidente.aggregate([
-        { $match: { created_at: { $type: 'date' } } },
-        { $group: { _id: { $hour: '$created_at' }, acidentes: { $sum: 1 } } },
+        { $addFields: { created_at_date: { $toDate: '$created_at' } } },
+        { $group: { _id: { $hour: '$created_at_date' }, acidentes: { $sum: 1 } } },
         { $sort: { _id: 1 } }
       ]);
       const horas = Array.from({length: 24}, (_, i) => {
@@ -825,8 +825,8 @@ apiRouter.get('/estatisticas/por-dia-semana', async (req, res) => {
   try {
     if (mongoose.connection.readyState === 1) {
       const result = await Acidente.aggregate([
-        { $match: { created_at: { $type: 'date' } } },
-        { $group: { _id: { $dayOfWeek: '$created_at' }, acidentes: { $sum: 1 } } },
+        { $addFields: { created_at_date: { $toDate: '$created_at' } } },
+        { $group: { _id: { $dayOfWeek: '$created_at_date' }, acidentes: { $sum: 1 } } },
         { $sort: { _id: 1 } }
       ]);
       const nomes = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];

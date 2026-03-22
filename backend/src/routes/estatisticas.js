@@ -58,8 +58,13 @@ router.get('/por-hora', async (req, res) => {
     if (mongoose.connection.readyState === 1) {
       const result = await Acidente.aggregate([
         {
+          $addFields: {
+            created_at_date: { $toDate: '$created_at' }
+          }
+        },
+        {
           $group: {
-            _id: { $hour: '$created_at' },
+            _id: { $hour: '$created_at_date' },
             acidentes: { $sum: 1 }
           }
         },
@@ -85,8 +90,13 @@ router.get('/por-dia-semana', async (req, res) => {
     if (mongoose.connection.readyState === 1) {
       const result = await Acidente.aggregate([
         {
+          $addFields: {
+            created_at_date: { $toDate: '$created_at' }
+          }
+        },
+        {
           $group: {
-            _id: { $dayOfWeek: '$created_at' },
+            _id: { $dayOfWeek: '$created_at_date' },
             acidentes: { $sum: 1 }
           }
         },
