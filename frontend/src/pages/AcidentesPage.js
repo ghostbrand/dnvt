@@ -417,33 +417,6 @@ export default function AcidentesPage() {
                                   <Eye className="w-4 h-4 mr-2" />
                                   Ver Detalhes
                                 </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  className="text-red-600 rounded-lg"
-                                  onClick={() => confirmAndRun('Remover Acidente', `Tem certeza que deseja remover o acidente #${getId(acidente)?.slice(-6)}? Esta ação não pode ser desfeita.`, 'red', () => handleDelete(getId(acidente)))}
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  Remover
-                                </DropdownMenuItem>
-                                {acidente.status !== 'RESOLVIDO' && (
-                                  <>
-                                    <div className="px-2 py-1.5 border-t border-slate-100 mt-1">
-                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Alterar Status</p>
-                                    </div>
-                                    {acidente.status !== 'VALIDADO' && (
-                                      <DropdownMenuItem onClick={() => confirmAndRun('Validar Acidente', 'Confirma que deseja marcar este acidente como Validado?', 'blue', () => handleQuickStatus(getId(acidente), 'VALIDADO'))} className="rounded-lg text-blue-600">
-                                        <CheckCircle className="w-4 h-4 mr-2" /> Validar
-                                      </DropdownMenuItem>
-                                    )}
-                                    {acidente.status !== 'EM_ATENDIMENTO' && (
-                                      <DropdownMenuItem onClick={() => confirmAndRun('Em Atendimento', 'Confirma que este acidente está em atendimento?', 'orange', () => handleQuickStatus(getId(acidente), 'EM_ATENDIMENTO'))} className="rounded-lg text-orange-600">
-                                        <Activity className="w-4 h-4 mr-2" /> Em Atendimento
-                                      </DropdownMenuItem>
-                                    )}
-                                    <DropdownMenuItem onClick={() => confirmAndRun('Resolver Acidente', 'Confirma que deseja marcar este acidente como Resolvido?', 'emerald', () => handleQuickStatus(getId(acidente), 'RESOLVIDO'))} className="rounded-lg text-emerald-600">
-                                      <CheckCircle className="w-4 h-4 mr-2" /> Resolver
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>

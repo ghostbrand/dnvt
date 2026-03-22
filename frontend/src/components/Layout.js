@@ -53,16 +53,15 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Mapa', href: '/mapa', icon: Map },
   { name: 'Acidentes', href: '/acidentes', icon: Car },
-  { name: 'Boletins', href: '/boletins', icon: FileText },
   { name: 'Zonas', href: '/zonas-criticas', icon: AlertTriangle },
-  { name: 'EstatÃ­sticas', href: '/estatisticas', icon: BarChart3 },
+  { name: 'Estatísticas', href: '/estatisticas', icon: BarChart3 },
 ];
 
 const adminNavigation = [
   { name: 'Utilizadores', href: '/utilizadores', icon: Users },
-  { name: 'CidadÃ£os', href: '/cidadaos', icon: UserCheck },
-  { name: 'HistÃ³rico', href: '/historico', icon: History },
-  { name: 'ConfiguraÃ§Ãµes', href: '/configuracoes', icon: Settings },
+  { name: 'Cidadãos', href: '/cidadaos', icon: UserCheck },
+  { name: 'Histórico', href: '/historico', icon: History },
+  { name: 'Configurações', href: '/configuracoes', icon: Settings },
 ];
 
 const SIDEBAR_EXPANDED_W = 260;

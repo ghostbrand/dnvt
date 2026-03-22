@@ -108,6 +108,25 @@ export const boletinsApi = {
     });
     if (!res.ok) throw new Error('Erro ao enviar arquivo');
     return res.json();
+  },
+  
+  update: async (id, data) => {
+    const res = await fetch(`${API}/boletins/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Erro ao atualizar boletim');
+    return res.json();
+  },
+  
+  delete: async (id) => {
+    const res = await fetch(`${API}/boletins/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Erro ao deletar boletim');
+    return res.json();
   }
 };
 
@@ -441,6 +460,15 @@ export const delegacoesApi = {
   agentesAtivos: async () => {
     const res = await fetch(`${API}/agentes/ativos-localizacao`, { headers: getHeaders() });
     if (!res.ok) return [];
+    return res.json();
+  },
+
+  delete: async (id) => {
+    const res = await fetch(`${API}/delegacoes/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Erro ao remover delegação');
     return res.json();
   }
 };

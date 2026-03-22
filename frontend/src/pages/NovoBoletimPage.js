@@ -59,10 +59,10 @@ export default function NovoBoletimPage() {
   }, []);
 
   const addVitima = () => {
-    setFormData({
-      ...formData,
-      vitimas_info: [...formData.vitimas_info, { nome: '', bi: '', estado: 'FERIDO_LEVE', telefone: '' }]
-    });
+    setFormData(prev => ({
+      ...prev,
+      vitimas_info: [...prev.vitimas_info, { id: Date.now() + Math.random(), nome: '', bi: '', estado: 'ILESO', telefone: '', endereco: '' }]
+    }));
   };
 
   const removeVitima = (index) => {
@@ -77,10 +77,10 @@ export default function NovoBoletimPage() {
   };
 
   const addVeiculo = () => {
-    setFormData({
-      ...formData,
-      veiculos_info: [...formData.veiculos_info, { marca: '', modelo: '', matricula: '', cor: '', condutor: '' }]
-    });
+    setFormData(prev => ({
+      ...prev,
+      veiculos_info: [...prev.veiculos_info, { id: Date.now() + Math.random(), matricula: '', marca: '', modelo: '', cor: '', proprietario: '' }]
+    }));
   };
 
   const removeVeiculo = (index) => {
@@ -95,10 +95,10 @@ export default function NovoBoletimPage() {
   };
 
   const addTestemunha = () => {
-    setFormData({
-      ...formData,
-      testemunhas: [...formData.testemunhas, { nome: '', bi: '', telefone: '', endereco: '' }]
-    });
+    setFormData(prev => ({
+      ...prev,
+      testemunhas: [...prev.testemunhas, { id: Date.now() + Math.random(), nome: '', telefone: '', endereco: '' }]
+    }));
   };
 
   const removeTestemunha = (index) => {
@@ -256,7 +256,7 @@ export default function NovoBoletimPage() {
                     <p className="text-sm text-slate-400 text-center py-4">Nenhuma vítima adicionada</p>
                   ) : (
                     formData.vitimas_info.map((vitima, idx) => (
-                      <div key={idx} className="p-4 bg-slate-50 rounded-lg space-y-3">
+                      <div key={vitima.id || idx} className="p-4 bg-slate-50 rounded-lg space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">Vítima {idx + 1}</span>
                           <Button type="button" variant="ghost" size="sm" onClick={() => removeVitima(idx)}>
@@ -319,7 +319,7 @@ export default function NovoBoletimPage() {
                     <p className="text-sm text-slate-400 text-center py-4">Nenhum veículo adicionado</p>
                   ) : (
                     formData.veiculos_info.map((veiculo, idx) => (
-                      <div key={idx} className="p-4 bg-slate-50 rounded-lg space-y-3">
+                      <div key={veiculo.id || idx} className="p-4 bg-slate-50 rounded-lg space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">Veículo {idx + 1}</span>
                           <Button type="button" variant="ghost" size="sm" onClick={() => removeVeiculo(idx)}>
@@ -379,7 +379,7 @@ export default function NovoBoletimPage() {
                     <p className="text-sm text-slate-400 text-center py-4">Nenhuma testemunha adicionada</p>
                   ) : (
                     formData.testemunhas.map((testemunha, idx) => (
-                      <div key={idx} className="p-4 bg-slate-50 rounded-lg space-y-3">
+                      <div key={testemunha.id || idx} className="p-4 bg-slate-50 rounded-lg space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">Testemunha {idx + 1}</span>
                           <Button type="button" variant="ghost" size="sm" onClick={() => removeTestemunha(idx)}>

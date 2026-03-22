@@ -11,6 +11,36 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const dns = require('dns');
 const { Expo } = require('expo-server-sdk');
+const PDFDocument = require('pdfkit');
+const multer = require('multer');
+const fs = require('fs');
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, 'uploads', 'boletins');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'boletim-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Apenas arquivos PDF são permitidos'));
+    }
+  }
+});
 
 const expo = new Expo();
 
@@ -46,7 +76,10 @@ const app = express();
 const server = http.createServer(app);
 
 // ==================== MIDDLEWARE ====================
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP to allow PDF embedding
+  frameguard: false // Allow iframe/embed from same origin
+}));
 app.use(morgan('combined'));
 
 // CORS Configuration — use CORS_ORIGINS env var (default: allow all for dev)
@@ -60,6 +93,10 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded files and public assets
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -803,6 +840,200 @@ apiRouter.get('/estatisticas/mensal', async (req, res) => {
   res.json({ ano: req.query.ano || 2026, mes: req.query.mes || 3, dados: [] });
 });
 
+apiRouter.get('/estatisticas/pdf', async (req, res) => {
+  try {
+    const ano = parseInt(req.query.ano) || new Date().getFullYear();
+    const mes = parseInt(req.query.mes) || (new Date().getMonth() + 1);
+    
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(500).json({ error: 'DB não conectada' });
+    }
+
+    // Buscar dados de estatísticas
+    const inicio = new Date(ano, mes - 1, 1);
+    const fim = new Date(ano, mes, 0, 23, 59, 59);
+    
+    const [total, graves, fatais, moderados, leves, porGravidade, porCausa, porTipo, totaisAgregados] = await Promise.all([
+      Acidente.countDocuments({ created_at: { $gte: inicio, $lte: fim } }),
+      Acidente.countDocuments({ created_at: { $gte: inicio, $lte: fim }, gravidade: 'GRAVE' }),
+      Acidente.countDocuments({ created_at: { $gte: inicio, $lte: fim }, gravidade: 'FATAL' }),
+      Acidente.countDocuments({ created_at: { $gte: inicio, $lte: fim }, gravidade: 'MODERADO' }),
+      Acidente.countDocuments({ created_at: { $gte: inicio, $lte: fim }, gravidade: 'LEVE' }),
+      Acidente.aggregate([
+        { $match: { created_at: { $gte: inicio, $lte: fim } } },
+        { $group: { _id: '$gravidade', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]),
+      Acidente.aggregate([
+        { $match: { created_at: { $gte: inicio, $lte: fim }, causa_principal: { $ne: null, $ne: '', $exists: true } } },
+        { $group: { _id: '$causa_principal', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 5 }
+      ]),
+      Acidente.aggregate([
+        { $match: { created_at: { $gte: inicio, $lte: fim }, tipo_acidente: { $ne: null, $ne: '', $exists: true } } },
+        { $group: { _id: '$tipo_acidente', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 5 }
+      ]),
+      Acidente.aggregate([
+        { $match: { created_at: { $gte: inicio, $lte: fim } } },
+        { $group: { 
+          _id: null, 
+          totalVeiculos: { $sum: '$numero_veiculos' },
+          totalVitimas: { $sum: '$numero_vitimas' }
+        } }
+      ])
+    ]);
+
+    const stats = totaisAgregados[0] || { totalVeiculos: 0, totalVitimas: 0 };
+
+    const doc = new PDFDocument({ 
+      size: 'A4', 
+      margins: { top: 60, bottom: 60, left: 50, right: 50 },
+      info: {
+        Title: `Relatório de Estatísticas - ${ano}/${mes}`,
+        Author: 'DNVT - Direcção Nacional de Viação e Trânsito',
+        Subject: 'Relatório Estatístico de Acidentes de Trânsito',
+        Keywords: 'estatísticas, acidentes, trânsito, DNVT'
+      }
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=relatorio_estatisticas_${ano}_${mes}.pdf`);
+    doc.pipe(res);
+
+    const primaryColor = '#1E40AF';
+    const lightGray = '#F3F4F6';
+    const textColor = '#1F2937';
+    const borderColor = '#E5E7EB';
+
+    // Header simples SEM fundo azul (padronizado)
+    let y = 50;
+    
+    try {
+      const logoGovPath = path.join(__dirname, 'public', 'img', 'logo-g.png');
+      const logoDnvtPath = path.join(__dirname, 'public', 'img', 'Logo_DTSER.png');
+      
+      if (fs.existsSync(logoGovPath)) {
+        doc.image(logoGovPath, 50, y, { width: 50, height: 65 });
+      }
+      if (fs.existsSync(logoDnvtPath)) {
+        doc.image(logoDnvtPath, 480, y, { width: 60, height: 60 });
+      }
+    } catch (err) {
+      console.error('Erro ao adicionar logos:', err);
+    }
+
+    // Texto do header SEM fundo azul
+    doc.fontSize(20).fillColor(primaryColor).font('Helvetica-Bold')
+       .text('GOVERNO DE ANGOLA', 120, y + 5);
+    doc.fontSize(14).fillColor(textColor).font('Helvetica')
+       .text('Direcção Nacional de Viação e Trânsito', 120, y + 30);
+    doc.fontSize(12).fillColor('#6B7280').font('Helvetica')
+       .text(`Relatório de Estatísticas - ${mes}/${ano}`, 120, y + 50);
+
+    // Linha separadora
+    y = 130;
+    doc.moveTo(50, y).lineTo(545, y).stroke(borderColor);
+    y += 20;
+
+    // Função para criar tabela
+    const createTable = (title, headers, rows, startY) => {
+      let tableY = startY;
+      
+      // Título da seção
+      doc.fontSize(12).fillColor(primaryColor).font('Helvetica-Bold')
+         .text(title, 50, tableY);
+      tableY += 25;
+      
+      const colWidth = 495 / headers.length;
+      
+      // Header da tabela
+      doc.rect(50, tableY, 495, 25).fill(lightGray);
+      headers.forEach((header, i) => {
+        doc.fontSize(9).fillColor(textColor).font('Helvetica-Bold')
+           .text(header, 55 + (i * colWidth), tableY + 8, { width: colWidth - 10, align: 'left' });
+      });
+      tableY += 25;
+      
+      // Linhas da tabela
+      rows.forEach((row, rowIdx) => {
+        const rowColor = rowIdx % 2 === 0 ? '#FFFFFF' : '#F9FAFB';
+        doc.rect(50, tableY, 495, 20).fill(rowColor);
+        
+        row.forEach((cell, i) => {
+          doc.fontSize(9).fillColor(textColor).font('Helvetica')
+             .text(String(cell), 55 + (i * colWidth), tableY + 5, { width: colWidth - 10, align: 'left' });
+        });
+        
+        tableY += 20;
+      });
+      
+      // Borda da tabela
+      doc.rect(50, startY + 25, 495, 25 + (rows.length * 20)).stroke(borderColor);
+      
+      return tableY + 15;
+    };
+
+    // TABELA 1: Resumo Geral
+    const resumoRows = [
+      ['Total de Acidentes', total],
+      ['Acidentes Graves', graves],
+      ['Acidentes Fatais', fatais],
+      ['Acidentes Moderados', moderados],
+      ['Acidentes Leves', leves],
+      ['Total de Veículos Envolvidos', stats.totalVeiculos],
+      ['Total de Vítimas', stats.totalVitimas]
+    ];
+    y = createTable('RESUMO GERAL', ['Indicador', 'Quantidade'], resumoRows, y);
+
+    // TABELA 2: Distribuição por Gravidade
+    const gravidadeRows = porGravidade.map(item => [
+      item._id || 'Não Especificado',
+      item.count
+    ]);
+    if (gravidadeRows.length > 0) {
+      y = createTable('DISTRIBUICAO POR GRAVIDADE', ['Gravidade', 'Quantidade'], gravidadeRows, y);
+    }
+
+    // TABELA 3: Principais Causas (sem N/A)
+    const causaRows = porCausa
+      .filter(item => item._id && item._id !== 'N/A' && item._id.trim() !== '')
+      .map((item, idx) => [
+        idx + 1,
+        item._id.replace(/_/g, ' '),
+        item.count
+      ]);
+    if (causaRows.length > 0) {
+      y = createTable('PRINCIPAIS CAUSAS', ['#', 'Causa', 'Quantidade'], causaRows, y);
+    }
+
+    // TABELA 4: Tipos de Acidentes (sem N/A)
+    const tipoRows = porTipo
+      .filter(item => item._id && item._id !== 'N/A' && item._id.trim() !== '')
+      .map((item, idx) => [
+        idx + 1,
+        item._id.replace(/_/g, ' '),
+        item.count
+      ]);
+    if (tipoRows.length > 0 && y < 650) {
+      y = createTable('TIPOS DE ACIDENTES', ['#', 'Tipo', 'Quantidade'], tipoRows, y);
+    }
+
+    // Rodapé
+    doc.fontSize(8).fillColor('#9CA3AF').font('Helvetica')
+       .text(`Gerado em ${new Date().toLocaleString('pt-AO')}`, 50, 750, { align: 'center', width: 495 });
+
+    doc.end();
+  } catch (err) {
+    console.error('Erro ao gerar PDF de estatísticas:', err.message);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Erro ao gerar PDF', detail: err.message });
+    }
+  }
+});
+
 // ==================== CONFIGURAÇÕES ENDPOINTS ====================
 apiRouter.get('/configuracoes/google-maps-key', async (req, res) => {
   try {
@@ -1123,6 +1354,385 @@ apiRouter.post('/boletins', async (req, res) => {
   res.status(500).json({ detail: 'Erro ao criar boletim' });
 });
 
+apiRouter.put('/boletins/:id', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      const boletim = await Boletim.findByIdAndUpdate(req.params.id, req.body, { new: true });
+      if (boletim) return res.json(boletim);
+      return res.status(404).json({ detail: 'Boletim não encontrado' });
+    }
+  } catch (err) { console.error('DB error PUT /boletins/:id:', err.message); }
+  res.status(404).json({ detail: 'Boletim não encontrado' });
+});
+
+apiRouter.delete('/boletins/:id', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      const boletim = await Boletim.findByIdAndDelete(req.params.id);
+      if (boletim) return res.json({ message: 'Boletim removido com sucesso' });
+      return res.status(404).json({ detail: 'Boletim não encontrado' });
+    }
+  } catch (err) { console.error('DB error DELETE /boletins/:id:', err.message); }
+  res.status(404).json({ detail: 'Boletim não encontrado' });
+});
+
+// Upload PDF file for boletim
+apiRouter.post('/boletins/:id/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(500).json({ error: 'Banco de dados não conectado' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+    }
+
+    const boletim = await Boletim.findById(req.params.id);
+    if (!boletim) {
+      // Delete uploaded file if boletim not found
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: 'Boletim não encontrado' });
+    }
+
+    // Delete old file if exists
+    if (boletim.arquivo_url) {
+      const oldFilePath = path.join(__dirname, boletim.arquivo_url.replace('/uploads/', 'uploads/'));
+      if (fs.existsSync(oldFilePath)) {
+        fs.unlinkSync(oldFilePath);
+      }
+    }
+
+    // Update boletim with new file URL
+    const fileUrl = `/uploads/boletins/${req.file.filename}`;
+    boletim.arquivo_url = fileUrl;
+    await boletim.save();
+
+    return res.json({ 
+      message: 'Arquivo enviado com sucesso', 
+      arquivo_url: fileUrl,
+      boletim 
+    });
+  } catch (error) {
+    console.error('Erro ao fazer upload:', error);
+    // Delete uploaded file on error
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    return res.status(500).json({ error: 'Erro ao fazer upload do arquivo' });
+  }
+});
+
+apiRouter.get('/boletins/:id/pdf', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(500).json({ detail: 'Banco de dados não conectado' });
+    }
+
+    const boletim = await Boletim.findById(req.params.id).populate('acidente_id');
+    
+    if (!boletim) {
+      return res.status(404).json({ detail: 'Boletim não encontrado' });
+    }
+
+    const doc = new PDFDocument({ 
+      size: 'A4', 
+      margins: { top: 60, bottom: 60, left: 50, right: 50 },
+      bufferPages: true,
+      info: {
+        Title: `Boletim de Ocorrência - ${boletim.numero_processo || boletim._id}`,
+        Author: 'DNVT - Direcção Nacional de Viação e Trânsito',
+        Subject: 'Boletim de Ocorrência de Acidente de Trânsito',
+        Keywords: 'boletim, acidente, trânsito, DNVT'
+      }
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=boletim_${boletim.numero_processo || boletim._id}.pdf`);
+
+    doc.pipe(res);
+
+    // Colors
+    const primaryColor = '#1E40AF'; // Blue
+    const secondaryColor = '#DC2626'; // Red
+    const lightGray = '#F3F4F6';
+    const darkGray = '#374151';
+    const textColor = '#1F2937';
+
+    // Helper functions
+    const addHeader = () => {
+      // Header background
+      doc.rect(0, 0, 595, 120).fill(primaryColor);
+      
+      // Add logos
+      try {
+        const logoGovPath = path.join(__dirname, 'public', 'img', 'logo-g.png');
+        const logoDnvtPath = path.join(__dirname, 'public', 'img', 'Logo_DTSER.png');
+        
+        if (fs.existsSync(logoGovPath)) {
+          doc.image(logoGovPath, 50, 20, { width: 60, height: 80 });
+        }
+        
+        if (fs.existsSync(logoDnvtPath)) {
+          doc.image(logoDnvtPath, 480, 25, { width: 70, height: 70 });
+        }
+      } catch (err) {
+        console.error('Erro ao adicionar logos:', err);
+      }
+      
+      // Title
+      doc.fontSize(24).fillColor('white').font('Helvetica-Bold')
+         .text('REPÚBLICA DE ANGOLA', 130, 30);
+      doc.fontSize(16).fillColor('#E5E7EB').font('Helvetica')
+         .text('Direcção Nacional de Viação e Trânsito', 130, 60);
+      doc.fontSize(12).fillColor('#D1D5DB')
+         .text('Ministério do Interior', 130, 85);
+    };
+
+    const addSection = (title, y, icon = '') => {
+      if (y > 700) {
+        doc.addPage();
+        y = 60;
+      }
+      
+      // Section background
+      doc.rect(50, y - 5, 495, 30).fill(lightGray);
+      
+      // Section title
+      doc.fontSize(13).fillColor(primaryColor).font('Helvetica-Bold')
+         .text(`${icon} ${title}`, 60, y + 5);
+      
+      return y + 35;
+    };
+
+    const addInfoBox = (label, value, x, y, width = 240) => {
+      doc.fontSize(8).fillColor(darkGray).font('Helvetica-Bold')
+         .text(label.toUpperCase(), x, y);
+      doc.fontSize(11).fillColor(textColor).font('Helvetica')
+         .text(value || 'N/A', x, y + 12, { width: width - 10 });
+      return y + 40;
+    };
+
+    const addTable = (headers, rows, startY) => {
+      let y = startY;
+      const colWidth = 495 / headers.length;
+      
+      // Table header
+      doc.rect(50, y, 495, 25).fill(primaryColor);
+      headers.forEach((header, i) => {
+        doc.fontSize(9).fillColor('white').font('Helvetica-Bold')
+           .text(header, 55 + (i * colWidth), y + 8, { width: colWidth - 10 });
+      });
+      
+      y += 25;
+      
+      // Table rows
+      rows.forEach((row, rowIndex) => {
+        if (y > 720) {
+          doc.addPage();
+          y = 60;
+        }
+        
+        const bgColor = rowIndex % 2 === 0 ? 'white' : lightGray;
+        doc.rect(50, y, 495, 30).fill(bgColor);
+        
+        row.forEach((cell, i) => {
+          doc.fontSize(9).fillColor(textColor).font('Helvetica')
+             .text(cell || '-', 55 + (i * colWidth), y + 8, { width: colWidth - 10 });
+        });
+        
+        y += 30;
+      });
+      
+      return y + 10;
+    };
+
+    // Add header
+    addHeader();
+
+    let yPosition = 140;
+
+    // Document title
+    doc.rect(50, yPosition, 495, 50).fill(secondaryColor);
+    doc.fontSize(20).fillColor('white').font('Helvetica-Bold')
+       .text('BOLETIM DE OCORRÊNCIA', 50, yPosition + 15, { align: 'center', width: 495 });
+    
+    yPosition += 70;
+
+    // Informações Gerais
+    yPosition = addSection('📋 INFORMAÇÕES GERAIS', yPosition);
+    
+    let tempY = yPosition;
+    tempY = addInfoBox('Número do Processo', boletim.numero_processo || 'N/A', 50, tempY);
+    addInfoBox('Data de Criação', boletim.created_at ? new Date(boletim.created_at).toLocaleString('pt-AO') : 'N/A', 305, yPosition);
+    
+    yPosition = tempY;
+    tempY = addInfoBox('Modo de Criação', boletim.modo_criacao || 'GERADO_SISTEMA', 50, yPosition);
+    if (boletim.created_by) {
+      addInfoBox('Registado por', boletim.created_by, 305, yPosition);
+    }
+    
+    yPosition = tempY + 10;
+
+    // Acidente Relacionado
+    if (boletim.acidente_id) {
+      yPosition = addSection('🚨 ACIDENTE RELACIONADO', yPosition);
+      const acidente = boletim.acidente_id;
+      
+      if (typeof acidente === 'object') {
+        tempY = yPosition;
+        tempY = addInfoBox('Tipo de Acidente', acidente.tipo_acidente?.replace(/_/g, ' ') || 'N/A', 50, tempY);
+        addInfoBox('Gravidade', acidente.gravidade || 'N/A', 305, yPosition);
+        
+        yPosition = tempY;
+        if (acidente.localizacao) {
+          yPosition = addInfoBox('Localização', acidente.localizacao, 50, yPosition, 495);
+        }
+        
+        if (acidente.data_hora) {
+          tempY = yPosition;
+          addInfoBox('Data/Hora do Acidente', new Date(acidente.data_hora).toLocaleString('pt-AO'), 50, tempY);
+          yPosition = tempY;
+        }
+      } else {
+        yPosition = addInfoBox('ID do Acidente', acidente, 50, yPosition, 495);
+      }
+      
+      yPosition += 10;
+    }
+
+    // Observações
+    if (boletim.observacoes) {
+      yPosition = addSection('📝 OBSERVAÇÕES', yPosition);
+      
+      doc.rect(50, yPosition, 495, Math.min(doc.heightOfString(boletim.observacoes, { width: 475 }) + 20, 150))
+         .fillAndStroke(lightGray, darkGray);
+      
+      doc.fontSize(10).fillColor(textColor).font('Helvetica')
+         .text(boletim.observacoes, 60, yPosition + 10, { width: 475, align: 'justify' });
+      
+      yPosition += Math.min(doc.heightOfString(boletim.observacoes, { width: 475 }) + 30, 160);
+    }
+
+    // Vítimas
+    if (boletim.vitimas_info && boletim.vitimas_info.length > 0) {
+      if (yPosition > 650) {
+        doc.addPage();
+        yPosition = 60;
+      }
+      
+      yPosition = addSection(`👥 VÍTIMAS (${boletim.vitimas_info.length})`, yPosition);
+      
+      const vitimasRows = boletim.vitimas_info.map((v, idx) => [
+        `${idx + 1}`,
+        v.nome || 'N/A',
+        v.bi || '-',
+        v.estado?.replace(/_/g, ' ') || '-',
+        v.telefone || '-'
+      ]);
+      
+      yPosition = addTable(['#', 'Nome', 'BI', 'Estado', 'Telefone'], vitimasRows, yPosition);
+    }
+
+    // Veículos
+    if (boletim.veiculos_info && boletim.veiculos_info.length > 0) {
+      if (yPosition > 650) {
+        doc.addPage();
+        yPosition = 60;
+      }
+      
+      yPosition = addSection(`🚗 VEÍCULOS (${boletim.veiculos_info.length})`, yPosition);
+      
+      const veiculosRows = boletim.veiculos_info.map((v, idx) => [
+        `${idx + 1}`,
+        `${v.marca || ''} ${v.modelo || ''}`.trim() || 'N/A',
+        v.matricula || '-',
+        v.cor || '-',
+        v.proprietario || v.condutor || '-'
+      ]);
+      
+      yPosition = addTable(['#', 'Marca/Modelo', 'Matrícula', 'Cor', 'Proprietário'], veiculosRows, yPosition);
+    }
+
+    // Testemunhas
+    if (boletim.testemunhas && boletim.testemunhas.length > 0) {
+      if (yPosition > 650) {
+        doc.addPage();
+        yPosition = 60;
+      }
+      
+      yPosition = addSection(`👁️ TESTEMUNHAS (${boletim.testemunhas.length})`, yPosition);
+      
+      const testemunhasRows = boletim.testemunhas.map((t, idx) => [
+        `${idx + 1}`,
+        t.nome || 'N/A',
+        t.bi || '-',
+        t.telefone || '-',
+        t.endereco || '-'
+      ]);
+      
+      yPosition = addTable(['#', 'Nome', 'BI', 'Telefone', 'Endereço'], testemunhasRows, yPosition);
+    }
+
+    // Rodapé com assinaturas
+    const pageCount = doc.bufferedPageRange().count;
+    for (let i = 0; i < pageCount; i++) {
+      doc.switchToPage(i);
+      
+      // Footer bar
+      doc.rect(0, doc.page.height - 80, 595, 80).fill(primaryColor);
+      
+      // Footer text
+      doc.fontSize(8).fillColor('white').font('Helvetica')
+         .text(`Página ${i + 1} de ${pageCount}`, 50, doc.page.height - 65, { align: 'left' });
+      
+      doc.fontSize(7).fillColor('#D1D5DB')
+         .text(`Gerado em ${new Date().toLocaleString('pt-AO')}`, 50, doc.page.height - 50, { align: 'left' });
+      
+      doc.fontSize(7).fillColor('#E5E7EB')
+         .text('DNVT - Direcção Nacional de Viação e Trânsito', 50, doc.page.height - 35, { align: 'left' })
+         .text('Ministério do Interior - República de Angola', 50, doc.page.height - 22, { align: 'left' });
+      
+      // Document ID on the right
+      doc.fontSize(8).fillColor('white')
+         .text(`Doc: ${boletim.numero_processo || boletim._id}`, 300, doc.page.height - 65, { align: 'right', width: 245 });
+    }
+
+    // Assinaturas na última página
+    doc.switchToPage(pageCount - 1);
+    
+    if (yPosition < 600) {
+      yPosition += 40;
+      
+      // Signature section
+      doc.rect(50, yPosition, 495, 2).fill(darkGray);
+      yPosition += 20;
+      
+      doc.fontSize(10).fillColor(textColor).font('Helvetica-Bold')
+         .text('ASSINATURAS E VALIDAÇÃO', 50, yPosition);
+      yPosition += 30;
+      
+      // Signature boxes
+      doc.fontSize(9).fillColor(darkGray).font('Helvetica');
+      
+      // Left signature
+      doc.text('_'.repeat(40), 70, yPosition);
+      doc.text('Agente Responsável', 70, yPosition + 15, { width: 200, align: 'center' });
+      
+      // Right signature
+      doc.text('_'.repeat(40), 325, yPosition);
+      doc.text('Supervisor/Coordenador', 325, yPosition + 15, { width: 200, align: 'center' });
+    }
+
+    doc.end();
+
+  } catch (error) {
+    console.error('Erro ao gerar PDF:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ detail: 'Erro ao gerar PDF', error: error.message });
+    }
+  }
+});
+
 // ==================== UTILIZADORES ENDPOINTS ====================
 apiRouter.get('/utilizadores', async (req, res) => {
   try {
@@ -1218,21 +1828,29 @@ apiRouter.post('/utilizadores', async (req, res) => {
 // /me must be before /:id to avoid "me" being treated as an ID
 apiRouter.patch('/utilizadores/me', async (req, res) => {
   try {
-    if (mongoose.connection.readyState !== 1) return res.status(500).json({ error: 'DB não conectada' });
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(500).json({ error: 'DB não conectada' });
+    }
     
     const jwt = require('jsonwebtoken');
     const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ error: 'Token não fornecido' });
+    if (!token) {
+      return res.status(401).json({ error: 'Token não fornecido' });
+    }
     
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
     const { password, role, status, privilegios, nivel_acesso, ...updateData } = req.body;
     
     const user = await User.findByIdAndUpdate(decoded.userId || decoded.id, updateData, { new: true }).select('-password');
-    if (!user) return res.status(404).json({ error: 'Utilizador não encontrado' });
+    if (!user) {
+      return res.status(404).json({ error: 'Utilizador não encontrado' });
+    }
     
     return res.json(user);
-  } catch (err) { console.error('DB error PATCH /utilizadores/me:', err.message); }
-  res.status(500).json({ error: 'Erro ao atualizar perfil' });
+  } catch (err) { 
+    console.error('DB error PATCH /utilizadores/me:', err.message);
+    return res.status(500).json({ error: 'Erro ao atualizar perfil', detail: err.message });
+  }
 });
 
 apiRouter.patch('/utilizadores/:id', async (req, res) => {
@@ -1715,6 +2333,46 @@ apiRouter.patch('/delegacoes/:id/rejeitar', async (req, res) => {
 
     return res.json(delegacao);
   } catch (err) { console.error('DB error PATCH /delegacoes/:id/rejeitar:', err.message); res.status(500).json({ error: err.message }); }
+});
+
+// Delete delegation (remove delegation)
+apiRouter.delete('/delegacoes/:id', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.status(500).json({ error: 'DB indisponível' });
+    
+    const delegacao = await Delegacao.findByIdAndDelete(req.params.id);
+    
+    if (!delegacao) {
+      return res.status(404).json({ error: 'Delegação não encontrada' });
+    }
+
+    // Notify agent via SMS if they have alertas_sms enabled
+    if (delegacao.agente_telefone) {
+      try {
+        let dbConfig = {};
+        try { dbConfig = await mongoose.connection.db.collection('configuracoes').findOne() || {}; } catch (_) {}
+        const ombalaToken = dbConfig.ombala_token;
+        const senderName = dbConfig.ombala_sender_name || 'DNVT';
+
+        if (ombalaToken) {
+          const axios = require('axios');
+          const smsMsg = `DNVT: A delegação da missão foi removida. Contacte a base para mais informações.`;
+          await axios.post('https://api.useombala.ao/v1/messages',
+            { message: smsMsg, from: senderName, to: delegacao.agente_telefone },
+            { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ombalaToken}` } }
+          );
+          console.log(`[SMS] Delegação removida notificada para ${delegacao.agente_nome} (${delegacao.agente_telefone})`);
+        }
+      } catch (smsErr) {
+        console.error(`SMS notification error:`, smsErr.message);
+      }
+    }
+
+    return res.json({ message: 'Delegação removida com sucesso', delegacao });
+  } catch (err) { 
+    console.error('DB error DELETE /delegacoes/:id:', err.message); 
+    res.status(500).json({ error: err.message }); 
+  }
 });
 
 // Get active agents with locations (for admin map)

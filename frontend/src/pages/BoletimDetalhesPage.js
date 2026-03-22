@@ -44,27 +44,68 @@ export default function BoletimDetalhesPage() {
   }, [id, navigate]);
 
   const handleDownloadPdf = async () => {
+    // Se foi upload manual, baixar o arquivo anexado
+    if (boletim.modo_criacao === 'UPLOAD_MANUAL' && boletim.arquivo_url) {
+      handleDownloadUploadedFile();
+      return;
+    }
+
     setDownloading(true);
     try {
       const token = localStorage.getItem('dnvt_token');
       const response = await fetch(`${API}/boletins/${id}/pdf`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!response.ok) throw new Error('Erro ao gerar PDF');
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          toast.error('Funcionalidade de geração de PDF não disponível no servidor. Entre em contato com o administrador.');
+        } else {
+          const errorText = await response.text();
+          console.error('Erro ao gerar PDF:', errorText);
+          toast.error(`Erro ao gerar PDF: ${errorText || 'Erro desconhecido'}`);
+        }
+        return;
+      }
+      
       const blob = await response.blob();
+      
+      if (blob.size === 0) {
+        toast.error('PDF gerado está vazio');
+        return;
+      }
+      
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `boletim_${id}.pdf`;
+      a.download = `boletim_${boletim.numero_processo || id}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success('PDF gerado com sucesso');
+      toast.success('PDF descarregado com sucesso');
     } catch (error) {
-      toast.error('Erro ao gerar PDF');
+      console.error('Erro detalhado:', error);
+      toast.error('Erro ao conectar com o servidor. Verifique sua conexão.');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleDownloadUploadedFile = async () => {
+    if (!boletim.arquivo_url) return;
+    
+    try {
+      const a = document.createElement('a');
+      a.href = boletim.arquivo_url;
+      a.download = `boletim_${boletim.numero_processo || id}_anexo.pdf`;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.success('Download iniciado');
+    } catch (error) {
+      toast.error('Erro ao baixar arquivo');
     }
   };
 
@@ -113,14 +154,19 @@ export default function BoletimDetalhesPage() {
               <p className="text-slate-500 text-sm font-mono">{boletim.numero_processo || boletim.boletim_id || boletim._id}</p>
             </div>
           </div>
-          <Button onClick={handleDownloadPdf} disabled={downloading}>
-            {downloading ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : (
-              <Download className="w-4 h-4 mr-2" />
-            )}
-            Descarregar PDF
-          </Button>
+          {/* Só mostrar botão se não for upload manual */}
+          {boletim.modo_criacao !== 'UPLOAD_MANUAL' && (
+            <div className="flex gap-2">
+              <Button onClick={handleDownloadPdf} disabled={downloading}>
+                {downloading ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Download className="w-4 h-4 mr-2" />
+                )}
+                Gerar PDF
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Status badges */}
@@ -270,18 +316,44 @@ export default function BoletimDetalhesPage() {
         {boletim.arquivo_url && (
           <Card>
             <CardHeader>
-              <CardTitle>Documento Anexado</CardTitle>
+              <CardTitle className="flex items-center justify-between">
+                <span>Documento Anexado</span>
+                <a 
+                  href={`${process.env.REACT_APP_BACKEND_URL}${boletim.arquivo_url}`}
+                  download
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Descarregar
+                </a>
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <a 
-                href={boletim.arquivo_url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
-              >
-                <FileText className="w-4 h-4" />
-                <span className="text-sm font-medium">Ver documento anexado</span>
-              </a>
+              {/* PDF Preview */}
+              <div className="border-2 border-slate-200 rounded-lg overflow-hidden bg-white">
+                <object
+                  data={`${process.env.REACT_APP_BACKEND_URL}${boletim.arquivo_url}`}
+                  type="application/pdf"
+                  className="w-full h-[600px]"
+                  title="Preview do documento"
+                >
+                  <div className="flex flex-col items-center justify-center h-[600px] p-8 text-center">
+                    <FileText className="w-16 h-16 text-slate-300 mb-4" />
+                    <p className="text-slate-600 mb-4">
+                      Seu navegador não suporta visualização de PDF integrada.
+                    </p>
+                    <a 
+                      href={`${process.env.REACT_APP_BACKEND_URL}${boletim.arquivo_url}`}
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Abrir PDF em nova aba
+                    </a>
+                  </div>
+                </object>
+              </div>
             </CardContent>
           </Card>
         )}

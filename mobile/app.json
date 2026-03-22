@@ -28,6 +28,7 @@
         "backgroundColor": "#0F172A"
       },
       "package": "ao.gov.dnvt.mobile",
+      "versionCode": 1,
       "config": {
         "googleMaps": {
           "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
@@ -36,11 +37,19 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "aca3d236-51be-4e93-b9f4-b9688fdb2154"
+      }
     },
     "plugins": [
       [
@@ -57,11 +66,7 @@
         }
       ],
       "expo-audio"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "your-eas-project-id"
-      }
-    }
+    ]
+
   }
 }

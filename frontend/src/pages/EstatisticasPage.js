@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { estatisticasApi } from '../services/api';
 import { 
@@ -12,8 +13,11 @@ import {
   TrendingUp,
   AlertTriangle,
   Skull,
-  ShieldAlert
+  ShieldAlert,
+  FileText
 } from 'lucide-react';
+import logoDnvt from '../img/Logo_DTSER.png';
+import logoGov from '../img/logo-g.png';
 import { toast } from 'sonner';
 import { 
   BarChart, 
@@ -56,6 +60,9 @@ export default function EstatisticasPage() {
   const [monthlyStats, setMonthlyStats] = useState(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [periodFilter, setPeriodFilter] = useState('mensal'); // 'diario', 'semanal', 'mensal', 'anual', 'intervalo'
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const fetchData = async () => {
     setLoading(true);
@@ -120,7 +127,29 @@ export default function EstatisticasPage() {
     a.href = url;
     a.download = `estatisticas_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
-    toast.success('Relatório exportado');
+    toast.success('Relatório CSV exportado');
+  };
+
+  const exportPDF = async () => {
+    try {
+      const token = localStorage.getItem('dnvt_token');
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/estatisticas/pdf?ano=${selectedYear}&mes=${selectedMonth}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) throw new Error('Erro ao gerar PDF');
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `relatorio_estatisticas_${selectedYear}_${selectedMonth}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Relatório PDF gerado com sucesso');
+    } catch (error) {
+      toast.error('Erro ao gerar PDF');
+    }
   };
 
   if (loading && !stats) {
@@ -143,60 +172,159 @@ export default function EstatisticasPage() {
   return (
     <Layout>
       <div className="space-y-6" data-testid="estatisticas-page">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-          <div className="animate-slide-up">
-            <h1 className="text-3xl font-extrabold text-[#1B2A4A] tracking-tight">Estatísticas</h1>
-            <p className="text-slate-400 text-sm mt-0.5">Análise detalhada de dados de acidentes</p>
-          </div>
-          <div className="flex gap-2 animate-slide-up stagger-1" style={{opacity: 0}}>
-            <Button 
-              variant="outline" 
-              onClick={exportCSV} 
-              data-testid="export-btn" 
-              className="rounded-xl border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Exportar CSV
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={fetchData} 
-              className="rounded-xl border-slate-200 hover:bg-slate-100 transition-all w-10 p-0"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
-        </div>
+        {/* Professional Header with Logos - Padronizado */}
+        <Card className="border-0 shadow-md shadow-slate-200/50 rounded-2xl overflow-hidden animate-slide-up">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <img src={logoGov} alt="Governo" className="h-16 w-auto" />
+                <div className="h-12 w-px bg-slate-200" />
+                <img src={logoDnvt} alt="DNVT" className="h-14 w-auto" />
+                <div className="h-12 w-px bg-slate-200" />
+                <div>
+                  <h1 className="text-2xl font-extrabold text-[#1B2A4A] tracking-tight">Estatísticas de Acidentes</h1>
+                  <p className="text-slate-500 text-sm mt-0.5">Direcção Nacional de Viação e Trânsito</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={exportPDF}
+                  className="rounded-xl border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Exportar PDF
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={exportCSV} 
+                  data-testid="export-btn" 
+                  className="rounded-xl border-slate-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-all"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Exportar CSV
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={fetchData} 
+                  className="rounded-xl border-slate-200 hover:bg-slate-100 transition-all w-10 p-0"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Period Selector */}
+        {/* Period Selector with Filters */}
         <Card className="border-0 shadow-sm shadow-slate-200/50 rounded-2xl animate-slide-up stagger-2" style={{opacity: 0}}>
           <CardContent className="p-4">
             <div className="flex items-center gap-4 flex-wrap">
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600">
                 <Calendar className="w-4 h-4" />
-                <span className="text-xs font-semibold">Período</span>
+                <span className="text-xs font-semibold">Filtros</span>
               </div>
-              <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(parseInt(v))}>
-                <SelectTrigger className="w-40 rounded-xl border-slate-200">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  {MONTHS.map((month, idx) => (
-                    <SelectItem key={idx} value={(idx + 1).toString()}>{month}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
-                <SelectTrigger className="w-28 rounded-xl border-slate-200">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  {[2024, 2025, 2026].map(year => (
-                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              
+              {/* Period Type Filter */}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={periodFilter === 'diario' ? 'default' : 'outline'}
+                  onClick={() => setPeriodFilter('diario')}
+                  className="rounded-xl h-9"
+                >
+                  Diário
+                </Button>
+                <Button
+                  size="sm"
+                  variant={periodFilter === 'semanal' ? 'default' : 'outline'}
+                  onClick={() => setPeriodFilter('semanal')}
+                  className="rounded-xl h-9"
+                >
+                  Semanal
+                </Button>
+                <Button
+                  size="sm"
+                  variant={periodFilter === 'mensal' ? 'default' : 'outline'}
+                  onClick={() => setPeriodFilter('mensal')}
+                  className="rounded-xl h-9"
+                >
+                  Mensal
+                </Button>
+                <Button
+                  size="sm"
+                  variant={periodFilter === 'anual' ? 'default' : 'outline'}
+                  onClick={() => setPeriodFilter('anual')}
+                  className="rounded-xl h-9"
+                >
+                  Anual
+                </Button>
+                <Button
+                  size="sm"
+                  variant={periodFilter === 'intervalo' ? 'default' : 'outline'}
+                  onClick={() => setPeriodFilter('intervalo')}
+                  className="rounded-xl h-9"
+                >
+                  Intervalo
+                </Button>
+              </div>
+              
+              <div className="h-6 w-px bg-slate-200" />
+              
+              {/* Mostrar seletores baseado no filtro */}
+              {periodFilter === 'intervalo' ? (
+                <>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-40 rounded-xl border-slate-200"
+                    placeholder="Data início"
+                  />
+                  <span className="text-slate-400">até</span>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-40 rounded-xl border-slate-200"
+                    placeholder="Data fim"
+                  />
+                </>
+              ) : periodFilter === 'anual' ? (
+                <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+                  <SelectTrigger className="w-28 rounded-xl border-slate-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {[2024, 2025, 2026, 2027].map(year => (
+                      <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <>
+                  <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(parseInt(v))}>
+                    <SelectTrigger className="w-40 rounded-xl border-slate-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {MONTHS.map((month, idx) => (
+                        <SelectItem key={idx} value={(idx + 1).toString()}>{month}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+                    <SelectTrigger className="w-28 rounded-xl border-slate-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {[2024, 2025, 2026, 2027].map(year => (
+                        <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>

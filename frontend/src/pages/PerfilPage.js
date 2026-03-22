@@ -35,6 +35,7 @@ export default function PerfilPage() {
   
   const [formData, setFormData] = useState({
     nome: '',
+    email: '',
     telefone: '',
     bilhete_identidade: '',
     endereco: '',
@@ -48,6 +49,7 @@ export default function PerfilPage() {
     if (user) {
       setFormData({
         nome: user.nome || '',
+        email: user.email || '',
         telefone: user.telefone || '',
         bilhete_identidade: user.bilhete_identidade || '',
         endereco: user.endereco || '',
@@ -74,7 +76,34 @@ export default function PerfilPage() {
     }
   };
 
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePhone = (phone) => {
+    // Validação para números angolanos: +244 9XX XXX XXX
+    const phoneRegex = /^\+?244\s?9[0-9]{2}\s?[0-9]{3}\s?[0-9]{3}$/;
+    return phoneRegex.test(phone.replace(/\s/g, ''));
+  };
+
   const handleSave = async () => {
+    // Validações
+    if (!formData.nome || formData.nome.trim().length < 3) {
+      toast.error('Nome deve ter pelo menos 3 caracteres');
+      return;
+    }
+
+    if (formData.email && !validateEmail(formData.email)) {
+      toast.error('Email inválido');
+      return;
+    }
+
+    if (formData.telefone && !validatePhone(formData.telefone)) {
+      toast.error('Telefone inválido. Use formato: +244 9XX XXX XXX');
+      return;
+    }
+
     setSaving(true);
     try {
       const response = await fetch(`${API}/utilizadores/me`, {
@@ -203,14 +232,29 @@ export default function PerfilPage() {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="nome" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Nome Completo</Label>
+                    <Label htmlFor="nome" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Nome Completo *</Label>
                     <Input
                       id="nome"
                       value={formData.nome}
                       onChange={(e) => setFormData({...formData, nome: e.target.value})}
                       placeholder="Seu nome completo"
                       className="rounded-xl border-slate-200"
+                      required
                     />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                      <Input
+                        id="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                        placeholder="seu@email.com"
+                        className="pl-10 rounded-xl border-slate-200"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="telefone" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Telefone</Label>
@@ -224,6 +268,7 @@ export default function PerfilPage() {
                         className="pl-10 rounded-xl border-slate-200"
                       />
                     </div>
+                    <p className="text-[11px] text-slate-400">Formato: +244 9XX XXX XXX</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="bi" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Bilhete de Identidade</Label>

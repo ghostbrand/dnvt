@@ -5,12 +5,10 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { acidentesApi, assistenciasApi, zonasApi, configuracoesApi } from '../services/api';
+import { acidentesApi, zonasApi, configuracoesApi } from '../services/api';
 import { 
   MapPin, 
   AlertTriangle, 
-  Ambulance, 
-  Flame,
   Shield,
   Loader2,
   Layers,
@@ -20,7 +18,8 @@ import {
   Navigation,
   Clock,
   Route,
-  ArrowRight
+  ArrowRight,
+  Flame
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -35,11 +34,9 @@ export default function MapaPage() {
   const directionsRendererRef = useRef(null);
   
   const [acidentes, setAcidentes] = useState([]);
-  const [assistencias, setAssistencias] = useState([]);
   const [agentesACaminho, setAgentesACaminho] = useState([]);
   const [zonas, setZonas] = useState([]);
   const [selectedAccident, setSelectedAccident] = useState(null);
-  const [selectedAssist, setSelectedAssist] = useState(null);
   const [routeInfo, setRouteInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -47,7 +44,6 @@ export default function MapaPage() {
   
   // Filters
   const [showAccidents, setShowAccidents] = useState(true);
-  const [showAssistances, setShowAssistances] = useState(true);
   const [showZones, setShowZones] = useState(true);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
@@ -79,7 +75,7 @@ export default function MapaPage() {
     // Handle Google Maps auth failure (invalid API key)
     window.gm_authFailure = () => {
       console.error('Google Maps authentication failed');
-      toast.error('API Key do Google Maps invÃ¡lida ou sem permissÃµes. Verifique nas ConfiguraÃ§Ãµes.');
+      toast.error('API Key do Google Maps inválida ou sem permissões. Verifique nas Configurações.');
     };
 
     window.__onGoogleMapsLoaded = () => setMapLoaded(true);
@@ -88,7 +84,7 @@ export default function MapaPage() {
     script.defer = true;
     script.onerror = () => {
       console.error('Failed to load Google Maps');
-      toast.error('Erro ao carregar Google Maps. Verifique a API Key nas configuraÃ§Ãµes.');
+      toast.error('Erro ao carregar Google Maps. Verifique a API Key nas configurações.');
     };
     document.head.appendChild(script);
   }, [apiKey]);
@@ -134,14 +130,12 @@ export default function MapaPage() {
   // Fetch data
   const fetchData = useCallback(async () => {
     try {
-      const [acidentesData, assistenciasData, agentesData, zonasData] = await Promise.all([
+      const [acidentesData, agentesData, zonasData] = await Promise.all([
         acidentesApi.listAtivos(),
-        assistenciasApi.list({ status: 'A_CAMINHO' }),
         acidentesApi.listTodosAgentesACaminho(),
         zonasApi.list()
       ]);
       setAcidentes(acidentesData);
-      setAssistencias(assistenciasData);
       setAgentesACaminho(Array.isArray(agentesData) ? agentesData : []);
       setZonas(zonasData);
     } catch (error) {
@@ -202,7 +196,6 @@ export default function MapaPage() {
       directionsRendererRef.current.setMap(mapInstanceRef.current);
     }
     setRouteInfo(null);
-    setSelectedAssist(null);
   }, []);
 
   // Update markers when data or filters change
@@ -248,7 +241,6 @@ export default function MapaPage() {
 
         marker.addListener('click', () => {
           setSelectedAccident(acidente);
-          setSelectedAssist(null);
           clearRoute();
         });
 
@@ -256,81 +248,37 @@ export default function MapaPage() {
       });
     }
 
-    // Add assistance markers
-    if (showAssistances) {
-      assistencias.forEach(assist => {
-        if (!assist.latitude_atual || !assist.longitude_atual) return;
-        
-        const iconColor = {
-          AMBULANCIA: '#2563EB',
-          POLICIA: '#0F172A',
-          BOMBEIRO: '#DC2626'
-        }[assist.tipo] || '#2563EB';
+    // Add agent markers (agents heading to accidents)
+    agentesACaminho.forEach(agente => {
+      if (!agente.latitude || !agente.longitude) return;
 
-        const marker = new window.google.maps.Marker({
-          position: { lat: assist.latitude_atual, lng: assist.longitude_atual },
-          map: mapInstanceRef.current,
-          icon: {
-            path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
-            scale: 1.5,
-            fillColor: iconColor,
-            fillOpacity: 1,
-            strokeColor: '#fff',
-            strokeWeight: 1,
-            anchor: new window.google.maps.Point(12, 22)
-          },
-          title: `${assist.tipo} - ${assist.status}`
-        });
-
-        marker.addListener('click', () => {
-          setSelectedAssist(assist);
-          setSelectedAccident(null);
-          // Find the linked accident and calculate route
-          const acidente = acidentes.find(a => a.acidente_id === assist.acidente_id);
-          if (acidente) {
-            calculateRoute(
-              { lat: assist.latitude_atual, lng: assist.longitude_atual },
-              { lat: acidente.latitude, lng: acidente.longitude },
-              assist
-            );
-          }
-        });
-
-        markersRef.current.push(marker);
+      const isArrived = agente.status === 'CHEGOU';
+      const marker = new window.google.maps.Marker({
+        position: { lat: agente.latitude, lng: agente.longitude },
+        map: mapInstanceRef.current,
+        icon: {
+          path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+          scale: 6,
+          fillColor: isArrived ? '#22C55E' : '#2563EB',
+          fillOpacity: 1,
+          strokeColor: '#fff',
+          strokeWeight: 2,
+          rotation: 0
+        },
+        title: `${agente.agente_nome || 'Agente'} - ${isArrived ? 'No Local' : 'A Caminho'}`,
+        zIndex: 12
       });
 
-      agentesACaminho.forEach(agente => {
-        if (!agente.latitude || !agente.longitude) return;
-
-        const isArrived = agente.status === 'CHEGOU';
-        const marker = new window.google.maps.Marker({
-          position: { lat: agente.latitude, lng: agente.longitude },
-          map: mapInstanceRef.current,
-          icon: {
-            path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-            scale: 6,
-            fillColor: isArrived ? '#22C55E' : '#2563EB',
-            fillOpacity: 1,
-            strokeColor: '#fff',
-            strokeWeight: 2,
-            rotation: 0
-          },
-          title: `${agente.agente_nome || 'Agente'} - ${isArrived ? 'No Local' : 'A Caminho'}`,
-          zIndex: 12
-        });
-
-        marker.addListener('click', () => {
-          const acidente = acidentes.find(a => (a._id || a.acidente_id) === agente.acidente_id);
-          if (acidente) {
-            setSelectedAccident(acidente);
-            setSelectedAssist(null);
-            clearRoute();
-          }
-        });
-
-        markersRef.current.push(marker);
+      marker.addListener('click', () => {
+        const acidente = acidentes.find(a => (a._id || a.acidente_id) === agente.acidente_id);
+        if (acidente) {
+          setSelectedAccident(acidente);
+          clearRoute();
+        }
       });
-    }
+
+      markersRef.current.push(marker);
+    });
 
     // Add zone overlays â€” polygon delimitations or circles
     if (showZones) {
@@ -382,7 +330,7 @@ export default function MapaPage() {
       });
     }
 
-  }, [acidentes, assistencias, agentesACaminho, zonas, showAccidents, showAssistances, showZones, showHeatmap, filterStatus, filterGravidade, mapLoaded, clearRoute, calculateRoute]);
+  }, [acidentes, agentesACaminho, zonas, showAccidents, showZones, showHeatmap, filterStatus, filterGravidade, mapLoaded, clearRoute, calculateRoute]);
 
   const centerOnAccident = (acidente) => {
     if (mapInstanceRef.current) {
@@ -462,16 +410,6 @@ export default function MapaPage() {
                 <AlertTriangle className="w-3 h-3 mr-1" />
                 <span className="hidden sm:inline">Acidentes</span>
                 <span className="sm:hidden">Acid.</span>
-              </Button>
-              <Button 
-                size="sm" 
-                variant={showAssistances ? "default" : "outline"}
-                onClick={() => setShowAssistances(!showAssistances)}
-                className="h-7 sm:h-8 text-[10px] sm:text-xs px-2 sm:px-3"
-              >
-                <Ambulance className="w-3 h-3 mr-1" />
-                <span className="hidden sm:inline">AssistÃªncias</span>
-                <span className="sm:hidden">Assist.</span>
               </Button>
               <Button 
                 size="sm" 
@@ -580,71 +518,9 @@ export default function MapaPage() {
           )}
         </div>
 
-        {/* Sidebar - Accident details, assistance route, or list */}
+        {/* Sidebar - Accident details or list */}
         <div className="lg:w-80 flex-shrink-0 max-h-[40vh] lg:max-h-none overflow-y-auto">
-          {selectedAssist && routeInfo ? (
-            <Card className="h-full overflow-hidden">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Ambulance className="w-5 h-5 text-blue-600" />
-                    AssistÃªncia
-                  </CardTitle>
-                  <Button size="sm" variant="ghost" onClick={clearRoute}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Badge className={`text-xs ${
-                    selectedAssist.tipo === 'AMBULANCIA' ? 'bg-blue-600' :
-                    selectedAssist.tipo === 'POLICIA' ? 'bg-slate-700' : 'bg-red-600'
-                  }`}>{selectedAssist.tipo}</Badge>
-                  <Badge variant="outline" className="text-xs bg-amber-100 text-amber-800 border-amber-200">
-                    {selectedAssist.status?.replace('_', ' ')}
-                  </Badge>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 bg-blue-50 rounded-xl text-center">
-                    <Navigation className="w-5 h-5 text-blue-600 mx-auto mb-1" />
-                    <p className="text-lg font-extrabold text-blue-700">{routeInfo.distance}</p>
-                    <p className="text-[10px] text-blue-500 font-medium">DistÃ¢ncia</p>
-                  </div>
-                  <div className="p-3 bg-amber-50 rounded-xl text-center">
-                    <Clock className="w-5 h-5 text-amber-600 mx-auto mb-1" />
-                    <p className="text-lg font-extrabold text-amber-700">{routeInfo.duration}</p>
-                    <p className="text-[10px] text-amber-500 font-medium">Tempo Estimado</p>
-                  </div>
-                </div>
-
-                {routeInfo.alternatives > 0 && (
-                  <div className="p-2 bg-slate-50 rounded-xl text-center">
-                    <p className="text-xs text-slate-500">
-                      <Route className="w-3.5 h-3.5 inline mr-1" />
-                      {routeInfo.alternatives} rota(s) alternativa(s)
-                    </p>
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">DireÃ§Ãµes</p>
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                    {routeInfo.steps.map((step, i) => (
-                      <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-slate-50">
-                        <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[11px] text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: step.instruction }} />
-                          <p className="text-[10px] text-slate-400 mt-0.5">{step.distance} Â· {step.duration}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : selectedAccident ? (
+          {selectedAccident ? (
             <Card className="h-full">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
