@@ -28,7 +28,7 @@
         "backgroundColor": "#0F172A"
       },
       "package": "ao.gov.dnvt.mobile",
-      "versionCode": 1,
+      "versionCode": 2,
       "config": {
         "googleMaps": {
           "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"

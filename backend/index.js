@@ -4,7 +4,10 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const path = require('path');
+const fs = require('fs');
+const PDFDocument = require('pdfkit');
 const Boletim = require('./src/models/Boletim');
+const Acidente = require('./src/models/Acidente');
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -114,6 +117,140 @@ app.use('/api/configuracoes', configuracoesRoutes);
 app.use('/api/agentes-a-caminho', agentesRoutes);
 app.use('/api/agentes', agentesRoutes);
 app.use('/api/historico', historicoRoutes);
+
+app.get('/api/estatisticas/pdf', async (req, res) => {
+  try {
+    const ano = parseInt(req.query.ano, 10) || new Date().getFullYear();
+    const mes = parseInt(req.query.mes, 10) || (new Date().getMonth() + 1);
+
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(500).json({ error: 'DB não conectada' });
+    }
+
+    const inicio = new Date(ano, mes - 1, 1);
+    const fim = new Date(ano, mes, 0, 23, 59, 59, 999);
+
+    const [total, graves, fatais, moderados, leves, porGravidade, porCausa, porTipo, totaisAgregados] = await Promise.all([
+      Acidente.countDocuments({ created_at: { $gte: inicio, $lte: fim } }),
+      Acidente.countDocuments({ created_at: { $gte: inicio, $lte: fim }, gravidade: 'GRAVE' }),
+      Acidente.countDocuments({ created_at: { $gte: inicio, $lte: fim }, gravidade: 'FATAL' }),
+      Acidente.countDocuments({ created_at: { $gte: inicio, $lte: fim }, gravidade: 'MODERADO' }),
+      Acidente.countDocuments({ created_at: { $gte: inicio, $lte: fim }, gravidade: 'LEVE' }),
+      Acidente.aggregate([
+        { $match: { created_at: { $gte: inicio, $lte: fim } } },
+        { $group: { _id: '$gravidade', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]),
+      Acidente.aggregate([
+        { $match: { created_at: { $gte: inicio, $lte: fim }, causa_principal: { $nin: [null, '', 'N/A'] } } },
+        { $group: { _id: '$causa_principal', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 5 }
+      ]),
+      Acidente.aggregate([
+        { $match: { created_at: { $gte: inicio, $lte: fim }, tipo_acidente: { $nin: [null, '', 'N/A'] } } },
+        { $group: { _id: '$tipo_acidente', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 5 }
+      ]),
+      Acidente.aggregate([
+        { $match: { created_at: { $gte: inicio, $lte: fim } } },
+        { $group: { _id: null, totalVeiculos: { $sum: '$numero_veiculos' }, totalVitimas: { $sum: '$numero_vitimas' } } }
+      ])
+    ]);
+
+    const stats = totaisAgregados[0] || { totalVeiculos: 0, totalVitimas: 0 };
+    const doc = new PDFDocument({ size: 'A4', margins: { top: 60, bottom: 60, left: 50, right: 50 } });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=relatorio_estatisticas_${ano}_${mes}.pdf`);
+    doc.pipe(res);
+
+    const primaryColor = '#1E40AF';
+    const lightGray = '#F3F4F6';
+    const textColor = '#1F2937';
+    const borderColor = '#E5E7EB';
+    let y = 50;
+
+    try {
+      const logoGovPath = path.join(__dirname, 'public', 'img', 'logo-g.png');
+      const logoDnvtPath = path.join(__dirname, 'public', 'img', 'Logo_DTSER.png');
+      if (fs.existsSync(logoGovPath)) doc.image(logoGovPath, 50, y, { width: 50, height: 65 });
+      if (fs.existsSync(logoDnvtPath)) doc.image(logoDnvtPath, 480, y, { width: 60, height: 60 });
+    } catch (error) {
+      console.error('Erro ao adicionar logos ao PDF de estatísticas:', error);
+    }
+
+    doc.fontSize(20).fillColor(primaryColor).font('Helvetica-Bold').text('GOVERNO DE ANGOLA', 120, y + 5);
+    doc.fontSize(14).fillColor(textColor).font('Helvetica').text('Direcção Nacional de Viação e Trânsito', 120, y + 30);
+    doc.fontSize(12).fillColor('#6B7280').font('Helvetica').text(`Relatório de Estatísticas - ${mes}/${ano}`, 120, y + 50);
+    y = 130;
+    doc.moveTo(50, y).lineTo(545, y).stroke(borderColor);
+    y += 20;
+
+    const ensureSpace = (neededHeight) => {
+      if (y + neededHeight > 730) {
+        doc.addPage();
+        y = 60;
+      }
+    };
+
+    const createTable = (title, headers, rows) => {
+      ensureSpace(60 + (rows.length * 20));
+      const startY = y;
+      doc.fontSize(12).fillColor(primaryColor).font('Helvetica-Bold').text(title, 50, y);
+      y += 25;
+      const colWidth = 495 / headers.length;
+      doc.rect(50, y, 495, 25).fill(lightGray);
+      headers.forEach((header, i) => {
+        doc.fontSize(9).fillColor(textColor).font('Helvetica-Bold').text(header, 55 + (i * colWidth), y + 8, { width: colWidth - 10 });
+      });
+      y += 25;
+      rows.forEach((row, rowIdx) => {
+        const rowColor = rowIdx % 2 === 0 ? '#FFFFFF' : '#F9FAFB';
+        doc.rect(50, y, 495, 20).fill(rowColor);
+        row.forEach((cell, i) => {
+          doc.fontSize(9).fillColor(textColor).font('Helvetica').text(String(cell), 55 + (i * colWidth), y + 5, { width: colWidth - 10 });
+        });
+        y += 20;
+      });
+      doc.rect(50, startY + 25, 495, 25 + (rows.length * 20)).stroke(borderColor);
+      y += 15;
+    };
+
+    createTable('RESUMO GERAL', ['Indicador', 'Quantidade'], [
+      ['Total de Acidentes', total],
+      ['Acidentes Graves', graves],
+      ['Acidentes Fatais', fatais],
+      ['Acidentes Moderados', moderados],
+      ['Acidentes Leves', leves],
+      ['Total de Veículos Envolvidos', stats.totalVeiculos],
+      ['Total de Vítimas', stats.totalVitimas]
+    ]);
+
+    if (porGravidade.length > 0) {
+      createTable('DISTRIBUICAO POR GRAVIDADE', ['Gravidade', 'Quantidade'], porGravidade.map((item) => [item._id || 'Não Especificado', item.count]));
+    }
+
+    const causaRows = porCausa.map((item, idx) => [idx + 1, String(item._id).replace(/_/g, ' '), item.count]);
+    if (causaRows.length > 0) {
+      createTable('PRINCIPAIS CAUSAS', ['#', 'Causa', 'Quantidade'], causaRows);
+    }
+
+    const tipoRows = porTipo.map((item, idx) => [idx + 1, String(item._id).replace(/_/g, ' '), item.count]);
+    if (tipoRows.length > 0) {
+      createTable('TIPOS DE ACIDENTES', ['#', 'Tipo', 'Quantidade'], tipoRows);
+    }
+
+    doc.fontSize(8).fillColor('#9CA3AF').font('Helvetica').text(`Gerado em ${new Date().toLocaleString('pt-AO')}`, 50, 750, { align: 'center', width: 495 });
+    doc.end();
+  } catch (error) {
+    console.error('Erro ao gerar PDF de estatísticas:', error);
+    if (!res.headersSent) {
+      return res.status(500).json({ error: 'Erro ao gerar PDF', detail: error.message });
+    }
+  }
+});
 
 app.get('/api/agentes/ativos-localizacao', async (req, res) => {
   try {
