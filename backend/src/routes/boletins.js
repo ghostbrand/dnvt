@@ -8,7 +8,11 @@ const PDFDocument = require('pdfkit');
 router.get('/', async (req, res) => {
   try {
     if (mongoose.connection.readyState === 1) {
-      const boletins = await Boletim.find()
+      const query = {};
+      if (req.query.acidente_id) {
+        query.acidente_id = req.query.acidente_id;
+      }
+      const boletins = await Boletim.find(query)
         .populate('acidente_id')
         .sort({ created_at: -1 });
       return res.json(boletins);
@@ -272,11 +276,21 @@ router.get('/:id/pdf', async (req, res) => {
     }
 
     // Footer
+    const now = new Date();
+    const formattedDate = now.toLocaleString('pt-PT', { 
+      timeZone: 'Africa/Luanda',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
     const pageCount = doc.bufferedPageRange().count;
     for (let i = 0; i < pageCount; i++) {
       doc.switchToPage(i);
       doc.fontSize(8).font('Helvetica').text(
-        `Página ${i + 1} de ${pageCount} - Gerado em ${new Date().toLocaleString('pt-AO')}`,
+        `Página ${i + 1} de ${pageCount} - Gerado em ${formattedDate}`,
         50,
         doc.page.height - 50,
         { align: 'center' }

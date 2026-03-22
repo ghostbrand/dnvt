@@ -116,7 +116,7 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
-        <StatusBar style="light" />
+        <StatusBar style="light" translucent={false} backgroundColor="#1B2A4A" />
         <RootNavigator />
       </ToastProvider>
     </AuthProvider>

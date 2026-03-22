@@ -165,7 +165,7 @@ export default function AcidenteDetalhesPage() {
     const cb = '__onGMapsDetail_' + Date.now();
     window[cb] = () => { setMapReady(true); delete window[cb]; };
     const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${mapApiKey}&loading=async&callback=${cb}`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${mapApiKey}&loading=async&callback=${cb}&libraries=marker`;
     s.async = true; s.defer = true;
     document.head.appendChild(s);
   }, [mapApiKey]);
@@ -197,11 +197,30 @@ export default function AcidenteDetalhesPage() {
     });
     mapInstanceRef.current = map;
     const color = { FATAL: '#DC2626', GRAVE: '#EA580C', MODERADO: '#D97706', LEVE: '#16A34A' }[acidente.gravidade] || '#D97706';
-    new window.google.maps.Marker({
-      position: pos, map,
-      icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: color, fillOpacity: 0.9, strokeColor: '#fff', strokeWeight: 3 },
-      title: acidente.tipo_acidente
-    });
+    
+    const markerDiv = document.createElement('div');
+    markerDiv.style.width = '28px';
+    markerDiv.style.height = '28px';
+    markerDiv.style.borderRadius = '50%';
+    markerDiv.style.backgroundColor = color;
+    markerDiv.style.border = '3px solid #fff';
+    markerDiv.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+    markerDiv.title = acidente.tipo_acidente;
+    
+    if (window.google.maps.marker?.AdvancedMarkerElement) {
+      new window.google.maps.marker.AdvancedMarkerElement({
+        position: pos,
+        map,
+        content: markerDiv,
+        title: acidente.tipo_acidente
+      });
+    } else {
+      new window.google.maps.Marker({
+        position: pos, map,
+        icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: color, fillOpacity: 0.9, strokeColor: '#fff', strokeWeight: 3 },
+        title: acidente.tipo_acidente
+      });
+    }
   }, [mapReady, acidente]);
 
   useEffect(() => {
@@ -284,26 +303,53 @@ export default function AcidenteDetalhesPage() {
     agentesACaminho.forEach(ag => {
       if (!ag.latitude || !ag.longitude) return;
       const isArrived = ag.status === 'CHEGOU';
-      const marker = new window.google.maps.Marker({
-        position: { lat: ag.latitude, lng: ag.longitude },
-        map,
-        icon: {
-          path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-          scale: 6,
-          fillColor: isArrived ? '#22C55E' : '#2563EB',
-          fillOpacity: 1,
-          strokeColor: '#fff',
-          strokeWeight: 2,
-          rotation: 0
-        },
-        title: `${ag.agente_nome || 'Agente'} â€” ${isArrived ? 'No Local' : 'A Caminho'}`,
-        zIndex: 10
-      });
+      const agentColor = isArrived ? '#22C55E' : '#2563EB';
+      
+      const agentMarkerDiv = document.createElement('div');
+      agentMarkerDiv.style.width = '24px';
+      agentMarkerDiv.style.height = '24px';
+      agentMarkerDiv.style.borderRadius = '50%';
+      agentMarkerDiv.style.backgroundColor = agentColor;
+      agentMarkerDiv.style.border = '2px solid #fff';
+      agentMarkerDiv.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+      agentMarkerDiv.style.cursor = 'pointer';
+      agentMarkerDiv.title = `${ag.agente_nome || 'Agente'} — ${isArrived ? 'No Local' : 'A Caminho'}`;
+      
+      let marker;
+      if (window.google.maps.marker?.AdvancedMarkerElement) {
+        marker = new window.google.maps.marker.AdvancedMarkerElement({
+          position: { lat: ag.latitude, lng: ag.longitude },
+          map,
+          content: agentMarkerDiv,
+          title: `${ag.agente_nome || 'Agente'} — ${isArrived ? 'No Local' : 'A Caminho'}`
+        });
+      } else {
+        marker = new window.google.maps.Marker({
+          position: { lat: ag.latitude, lng: ag.longitude },
+          map,
+          icon: {
+            path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 6,
+            fillColor: agentColor,
+            fillOpacity: 1,
+            strokeColor: '#fff',
+            strokeWeight: 2,
+            rotation: 0
+          },
+          title: `${ag.agente_nome || 'Agente'} — ${isArrived ? 'No Local' : 'A Caminho'}`,
+          zIndex: 10
+        });
+      }
 
       const info = new window.google.maps.InfoWindow({
         content: `<div style="font-family:sans-serif;padding:4px"><strong>${ag.agente_nome || 'Agente'}</strong><br/><span style="color:${isArrived ? '#16A34A' : '#2563EB'};font-size:12px">${isArrived ? '✅ Chegou ao local' : '🚗 A caminho'}</span><br/><span style="color:#64748b;font-size:11px">Atualizado: ${new Date(ag.updated_at).toLocaleTimeString('pt-AO')}</span></div>`
       });
-      marker.addListener('click', () => info.open(map, marker));
+      
+      if (window.google.maps.marker?.AdvancedMarkerElement && marker.content) {
+        marker.content.addEventListener('click', () => info.open(map, marker));
+      } else {
+        marker.addListener('click', () => info.open(map, marker));
+      }
 
       agentMarkersRef.current.push(marker);
     });

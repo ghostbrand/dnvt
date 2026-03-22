@@ -242,7 +242,18 @@ app.get('/api/estatisticas/pdf', async (req, res) => {
       createTable('TIPOS DE ACIDENTES', ['#', 'Tipo', 'Quantidade'], tipoRows);
     }
 
-    doc.fontSize(8).fillColor('#9CA3AF').font('Helvetica').text(`Gerado em ${new Date().toLocaleString('pt-AO')}`, 50, 750, { align: 'center', width: 495 });
+    const now = new Date();
+    const angolaTime = new Date(now.getTime() + (60 * 60 * 1000));
+    const formattedDate = angolaTime.toLocaleString('pt-PT', { 
+      timeZone: 'Africa/Luanda',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+    doc.fontSize(8).fillColor('#9CA3AF').font('Helvetica').text(`Gerado em ${formattedDate}`, 50, 750, { align: 'center', width: 495 });
     doc.end();
   } catch (error) {
     console.error('Erro ao gerar PDF de estatísticas:', error);

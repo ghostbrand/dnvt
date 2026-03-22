@@ -631,11 +631,14 @@ apiRouter.patch('/acidentes/:id', async (req, res) => {
 apiRouter.delete('/acidentes/:id', async (req, res) => {
   try {
     if (mongoose.connection.readyState === 1) {
+      // Delete associated boletins first
+      await Boletim.deleteMany({ acidente_id: req.params.id });
+      
       const acidente = await Acidente.findByIdAndDelete(req.params.id);
       if (acidente) return res.json({ message: 'Acidente removido' });
       return res.status(404).json({ detail: 'Acidente não encontrado' });
     }
-  } catch (err) { console.error('DB error DELETE /acidentes:', err.message); }
+  } catch (err) { console.error('DB error DELETE /acidentes/:id:', err.message); }
   res.status(500).json({ detail: 'Erro ao remover acidente' });
 });
 

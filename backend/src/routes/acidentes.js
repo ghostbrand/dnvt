@@ -189,6 +189,11 @@ router.patch('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     if (mongoose.connection.readyState === 1) {
+      const Boletim = require('../models/Boletim');
+      
+      // Delete associated boletins first
+      await Boletim.deleteMany({ acidente_id: req.params.id });
+      
       const acidente = await Acidente.findByIdAndDelete(req.params.id);
       if (acidente) return res.json({ message: 'Acidente deletado' });
     }

@@ -128,16 +128,29 @@ router.get('/mensal', async (req, res) => {
       const startDate = new Date(ano, mes - 1, 1);
       const endDate = new Date(ano, mes, 0, 23, 59, 59);
 
-      const acidentes = await Acidente.find({
-        created_at: { $gte: startDate, $lte: endDate }
-      });
+      const [acidentes, graves, fatais, moderados, leves] = await Promise.all([
+        Acidente.find({ created_at: { $gte: startDate, $lte: endDate } }),
+        Acidente.countDocuments({ created_at: { $gte: startDate, $lte: endDate }, gravidade: 'GRAVE' }),
+        Acidente.countDocuments({ created_at: { $gte: startDate, $lte: endDate }, gravidade: 'FATAL' }),
+        Acidente.countDocuments({ created_at: { $gte: startDate, $lte: endDate }, gravidade: 'MODERADO' }),
+        Acidente.countDocuments({ created_at: { $gte: startDate, $lte: endDate }, gravidade: 'LEVE' })
+      ]);
 
-      return res.json({ ano, mes, total: acidentes.length, acidentes });
+      return res.json({ 
+        ano, 
+        mes, 
+        total_acidentes: acidentes.length,
+        acidentes_graves: graves,
+        acidentes_fatais: fatais,
+        acidentes_moderados: moderados,
+        acidentes_leves: leves,
+        acidentes 
+      });
     }
   } catch (error) {
     console.error('Erro ao buscar estatísticas mensais:', error);
   }
-  res.json({ ano: new Date().getFullYear(), mes: new Date().getMonth() + 1, total: 0, acidentes: [] });
+  res.json({ ano: new Date().getFullYear(), mes: new Date().getMonth() + 1, total_acidentes: 0, acidentes_graves: 0, acidentes_fatais: 0, acidentes: [] });
 });
 
 module.exports = router;
