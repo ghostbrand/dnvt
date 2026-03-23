@@ -67,6 +67,7 @@ const configuracaoSchema = new mongoose.Schema({
     default: Date.now
   }
 }, {
+  collection: 'configuracoes',
   timestamps: true
 });
 
