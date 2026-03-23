@@ -93,7 +93,7 @@ export default function MyReportsScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+      <StatusBar translucent={false} backgroundColor="#1B2A4A" barStyle="light-content" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
           <Ionicons name="arrow-back" size={22} color={COLORS.white} />

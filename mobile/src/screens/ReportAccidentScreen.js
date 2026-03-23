@@ -187,7 +187,7 @@ export default function ReportAccidentScreen({ navigation }) {
 
   return (
     <View style={styles.overlayContainer}>
-      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+      <StatusBar translucent={false} backgroundColor="#1B2A4A" barStyle="light-content" />
       <TouchableOpacity 
         style={styles.backdrop}
         activeOpacity={1}

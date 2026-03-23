@@ -29,15 +29,20 @@ router.patch('/me', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ detail: 'Token não fornecido' });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const { password, ...updateData } = req.body;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dnvt_super_secret_key_2024_angola_traffic_system');
+    const { password, nome, ...updateData } = req.body;
+    
+    // Map 'nome' to 'name' for database
+    if (nome) {
+      updateData.name = nome;
+    }
     
     if (password) {
       updateData.password = await bcrypt.hash(password, 10);
     }
     
     const user = await User.findByIdAndUpdate(
-      decoded.userId,
+      decoded.id || decoded.userId,
       updateData,
       { new: true }
     )
@@ -226,6 +231,30 @@ router.patch('/:id/aprovar', async (req, res) => {
   } catch (error) {
     console.error('Erro ao aprovar utilizador:', error);
     res.status(500).json({ error: 'Erro ao aprovar utilizador' });
+  }
+});
+
+// Suspend user
+router.patch('/:id/suspender', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(500).json({ error: 'DB não conectada' });
+    }
+    
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { status: 'suspenso' },
+      { new: true }
+    ).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Utilizador não encontrado' });
+    }
+    
+    return res.json(user);
+  } catch (error) {
+    console.error('Erro ao suspender utilizador:', error);
+    res.status(500).json({ error: 'Erro ao suspender utilizador' });
   }
 });
 

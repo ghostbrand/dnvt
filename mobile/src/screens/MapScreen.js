@@ -324,7 +324,7 @@ export default function MapScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+      <StatusBar translucent={false} backgroundColor="#1B2A4A" barStyle="light-content" />
 
       {loading ? (
         <View style={styles.loadingContainer}>

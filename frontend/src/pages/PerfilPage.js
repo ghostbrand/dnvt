@@ -99,7 +99,7 @@ export default function PerfilPage() {
       return;
     }
 
-    if (formData.telefone && !validatePhone(formData.telefone)) {
+    if (formData.telefone && formData.telefone.trim() !== '' && !validatePhone(formData.telefone)) {
       toast.error('Telefone inválido. Use formato: +244 9XX XXX XXX');
       return;
     }
