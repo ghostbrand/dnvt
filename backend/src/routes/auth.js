@@ -171,4 +171,79 @@ router.post('/validar-email', async (req, res) => {
   }
 });
 
+// Send phone OTP for registration
+router.post('/enviar-otp', async (req, res) => {
+  try {
+    const { telefone } = req.body;
+    if (!telefone) return res.status(400).json({ success: false, error: 'Telefone é obrigatório' });
+
+    if (mongoose.connection.readyState === 1) {
+      const existing = await User.findOne({ telefone });
+      if (existing) {
+        return res.json({ success: false, error: 'Este número já está registado' });
+      }
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiry = new Date(Date.now() + 10 * 60 * 1000);
+
+    await mongoose.connection.db.collection('otp_codes').updateOne(
+      { telefone },
+      { $set: { code: otp, expiry, used: false, created_at: new Date() } },
+      { upsert: true }
+    );
+
+    try {
+      let dbConfig = {};
+      if (mongoose.connection.readyState === 1) {
+        dbConfig = await mongoose.connection.db.collection('configuracoes').findOne() || {};
+      }
+      const smsToken = dbConfig.ombala_token;
+      const senderName = dbConfig.ombala_sender_name || 'DNVT';
+      if (smsToken) {
+        const axios = require('axios');
+        await axios.post('https://api.useombala.ao/v1/messages',
+          { message: `DNVT - O seu codigo de verificacao e: ${otp}. Valido por 10 minutos.`, from: senderName, to: telefone },
+          { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${smsToken}` } }
+        );
+        console.log(`OTP sent to ${telefone}`);
+      } else {
+        console.log(`OTP for ${telefone}: ${otp} (SMS not configured)`);
+      }
+    } catch (smsErr) {
+      console.error('OTP SMS error:', smsErr.message);
+      console.log(`OTP for ${telefone}: ${otp} (SMS failed)`);
+    }
+
+    return res.json({ success: true, message: 'Código enviado' });
+  } catch (error) {
+    console.error('OTP send error:', error.message);
+    res.status(500).json({ success: false, error: 'Erro ao enviar código' });
+  }
+});
+
+// Verify phone OTP
+router.post('/verificar-otp', async (req, res) => {
+  try {
+    const { telefone, code } = req.body;
+    if (!telefone || !code) return res.status(400).json({ valido: false, erro: 'Telefone e código são obrigatórios' });
+
+    if (mongoose.connection.readyState !== 1) return res.status(500).json({ valido: false, erro: 'DB indisponível' });
+
+    const record = await mongoose.connection.db.collection('otp_codes').findOne({ telefone, code, used: false });
+    if (!record) return res.json({ valido: false, erro: 'Código inválido' });
+    if (new Date() > new Date(record.expiry)) return res.json({ valido: false, erro: 'Código expirado' });
+
+    await mongoose.connection.db.collection('otp_codes').updateOne(
+      { _id: record._id },
+      { $set: { used: true } }
+    );
+
+    return res.json({ valido: true });
+  } catch (error) {
+    console.error('OTP verify error:', error.message);
+    res.status(500).json({ valido: false, erro: 'Erro ao verificar código' });
+  }
+});
+
 module.exports = router;
