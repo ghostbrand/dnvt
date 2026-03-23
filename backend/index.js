@@ -91,6 +91,7 @@ const boletinsRoutes = require('./src/routes/boletins');
 const configuracoesRoutes = require('./src/routes/configuracoes');
 const agentesRoutes = require('./src/routes/agentes');
 const historicoRoutes = require('./src/routes/historico');
+const smsRoutes = require('./src/routes/sms');
 const anotacoesModel = require('./src/models/Anotacao');
 
 // Health check
@@ -117,6 +118,7 @@ app.use('/api/configuracoes', configuracoesRoutes);
 app.use('/api/agentes-a-caminho', agentesRoutes);
 app.use('/api/agentes', agentesRoutes);
 app.use('/api/historico', historicoRoutes);
+app.use('/api/sms', smsRoutes);
 
 app.get('/api/estatisticas/pdf', async (req, res) => {
   try {
