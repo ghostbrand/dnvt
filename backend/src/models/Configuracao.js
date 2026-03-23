@@ -5,6 +5,38 @@ const configuracaoSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  ombala_token: {
+    type: String,
+    default: ''
+  },
+  ombala_sender_name: {
+    type: String,
+    default: 'DNVT'
+  },
+  ombala_sms_balance: {
+    type: Number,
+    default: null
+  },
+  email_host: {
+    type: String,
+    default: ''
+  },
+  email_port: {
+    type: String,
+    default: '587'
+  },
+  email_user: {
+    type: String,
+    default: ''
+  },
+  email_password: {
+    type: String,
+    default: ''
+  },
+  email_from_name: {
+    type: String,
+    default: 'DNVT - Sistema de Gestão'
+  },
   email_notifications: {
     type: Boolean,
     default: true
