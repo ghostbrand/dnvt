@@ -18,7 +18,8 @@ router.post('/recover', async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ detail: 'Email é obrigatório' });
 
-    const user = await User.findOne({ email });
+    const mongoose = require('mongoose');
+    const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) return res.status(404).json({ detail: 'Utilizador não encontrado' });
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -26,19 +27,37 @@ router.post('/recover', async (req, res) => {
     user.reset_code_expires = new Date(Date.now() + 15 * 60 * 1000);
     await user.save();
 
+    // Get email configuration from database
+    let config = {};
+    if (mongoose.connection.readyState === 1) {
+      config = await mongoose.connection.db.collection('configuracoes').findOne() || {};
+    }
+
+    const emailHost = config.email_host || process.env.SMTP_HOST || 'smtp.gmail.com';
+    const emailPort = parseInt(config.email_port || process.env.SMTP_PORT || '587');
+    const emailUser = config.email_user || process.env.SMTP_USER;
+    const emailPass = config.email_password || process.env.SMTP_PASS;
+    const emailFromName = config.email_from_name || 'DNVT - Sistema de Gestão';
+
+    if (!emailUser || !emailPass) {
+      console.error('Email configuration missing');
+      return res.status(500).json({ detail: 'Configuração de email não encontrada. Configure nas Configurações do sistema.' });
+    }
+
     const nodemailer = require('nodemailer');
+    const isSecure = emailPort === 465;
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: process.env.SMTP_PORT || 587,
-      secure: false,
+      host: emailHost,
+      port: emailPort,
+      secure: isSecure,
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user: emailUser,
+        pass: emailPass,
       },
     });
 
     await transporter.sendMail({
-      from: process.env.SMTP_USER,
+      from: `"${emailFromName}" <${emailUser}>`,
       to: email,
       subject: 'Código de Recuperação de Senha - DNVT',
       html: `
